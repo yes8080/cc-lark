@@ -229,13 +229,16 @@ function toBeijingDate(d: Date): Date {
 
 /** Beijing time start of day (00:00:00) as real UTC Date */
 function beijingStartOfDay(bjDate: Date): Date {
-  return new Date(Date.UTC(bjDate.getUTCFullYear(), bjDate.getUTCMonth(), bjDate.getUTCDate()) - BJ_OFFSET_MS);
+  return new Date(
+    Date.UTC(bjDate.getUTCFullYear(), bjDate.getUTCMonth(), bjDate.getUTCDate()) - BJ_OFFSET_MS
+  );
 }
 
 /** Beijing time end of day (23:59:59) as real UTC Date */
 function beijingEndOfDay(bjDate: Date): Date {
   return new Date(
-    Date.UTC(bjDate.getUTCFullYear(), bjDate.getUTCMonth(), bjDate.getUTCDate(), 23, 59, 59) - BJ_OFFSET_MS
+    Date.UTC(bjDate.getUTCFullYear(), bjDate.getUTCMonth(), bjDate.getUTCDate(), 23, 59, 59) -
+      BJ_OFFSET_MS
   );
 }
 

@@ -90,7 +90,10 @@ const createActionSchema = {
   folder_token: z.string().optional().describe('Folder token (optional)'),
 };
 
-async function getAccessToken(context: { larkClient: LarkClient | null; config: import('../../core/types.js').FeishuConfig }): Promise<string | ToolResult> {
+async function getAccessToken(context: {
+  larkClient: LarkClient | null;
+  config: import('../../core/types.js').FeishuConfig;
+}): Promise<string | ToolResult> {
   const { larkClient, config } = context;
   if (!larkClient) return jsonError('LarkClient not initialized.');
   const { appId, appSecret, brand } = config;
@@ -203,7 +206,10 @@ export function registerSheetTool(registry: ToolRegistry): void {
         // Get first sheet
         const Lark = await import('@larksuiteoapi/node-sdk');
         const opts = Lark.withUserAccessToken(accessToken);
-        const sheetsRes = await larkClient!.sdk.sheets.spreadsheetSheet.query({ path: { spreadsheet_token: token } }, opts);
+        const sheetsRes = await larkClient!.sdk.sheets.spreadsheetSheet.query(
+          { path: { spreadsheet_token: token } },
+          opts
+        );
         assertLarkOk(sheetsRes);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const firstSheet = (sheetsRes.data?.sheets ?? [])[0] as any;
@@ -220,11 +226,14 @@ export function registerSheetTool(registry: ToolRegistry): void {
       const opts = Lark.withUserAccessToken(accessToken);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const res = await (larkClient!.sdk as any).request({
-        method: 'GET',
-        url: `/open-apis/sheets/v2/spreadsheets/${token}/values/${encodeURIComponent(range!)}`,
-        headers: { Authorization: `Bearer ${accessToken}` },
-      }, opts);
+      const res = await (larkClient!.sdk as any).request(
+        {
+          method: 'GET',
+          url: `/open-apis/sheets/v2/spreadsheets/${token}/values/${encodeURIComponent(range!)}`,
+          headers: { Authorization: `Bearer ${accessToken}` },
+        },
+        opts
+      );
 
       if (res.code && res.code !== 0) {
         return jsonError(res.msg || `API error: ${res.code}`);
@@ -236,7 +245,7 @@ export function registerSheetTool(registry: ToolRegistry): void {
 
       // Truncate if needed
       let truncated = false;
-       
+
       const totalRows = values?.length ?? 0;
       if (values && values.length > MAX_READ_ROWS) {
         values = values.slice(0, MAX_READ_ROWS);
@@ -246,7 +255,13 @@ export function registerSheetTool(registry: ToolRegistry): void {
       return json({
         range: valueRange?.range,
         values,
-        ...(truncated ? { truncated: true, total_rows: totalRows, hint: `Data exceeds ${MAX_READ_ROWS} rows, truncated.` } : {}),
+        ...(truncated
+          ? {
+              truncated: true,
+              total_rows: totalRows,
+              hint: `Data exceeds ${MAX_READ_ROWS} rows, truncated.`,
+            }
+          : {}),
       });
     },
   });
@@ -254,7 +269,8 @@ export function registerSheetTool(registry: ToolRegistry): void {
   // Write
   registry.register({
     name: 'feishu_sheet_write',
-    description: 'Write data to a Feishu spreadsheet (overwrites existing data).\n\nRequires OAuth authorization.',
+    description:
+      'Write data to a Feishu spreadsheet (overwrites existing data).\n\nRequires OAuth authorization.',
     inputSchema: writeActionSchema,
     handler: async (args, context) => {
       const p = args as z.infer<ReturnType<typeof z.object<typeof writeActionSchema>>>;
@@ -276,12 +292,15 @@ export function registerSheetTool(registry: ToolRegistry): void {
       const opts = Lark.withUserAccessToken(accessToken);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const res = await (larkClient!.sdk as any).request({
-        method: 'PUT',
-        url: `/open-apis/sheets/v2/spreadsheets/${token}/values`,
-        data: { valueRange: { range, values: p.values } },
-        headers: { Authorization: `Bearer ${accessToken}` },
-      }, opts);
+      const res = await (larkClient!.sdk as any).request(
+        {
+          method: 'PUT',
+          url: `/open-apis/sheets/v2/spreadsheets/${token}/values`,
+          data: { valueRange: { range, values: p.values } },
+          headers: { Authorization: `Bearer ${accessToken}` },
+        },
+        opts
+      );
 
       if (res.code && res.code !== 0) {
         return jsonError(res.msg || `API error: ${res.code}`);
@@ -321,12 +340,15 @@ export function registerSheetTool(registry: ToolRegistry): void {
       const opts = Lark.withUserAccessToken(accessToken);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const res = await (larkClient!.sdk as any).request({
-        method: 'POST',
-        url: `/open-apis/sheets/v2/spreadsheets/${token}/values_append`,
-        data: { valueRange: { range, values: p.values } },
-        headers: { Authorization: `Bearer ${accessToken}` },
-      }, opts);
+      const res = await (larkClient!.sdk as any).request(
+        {
+          method: 'POST',
+          url: `/open-apis/sheets/v2/spreadsheets/${token}/values_append`,
+          data: { valueRange: { range, values: p.values } },
+          headers: { Authorization: `Bearer ${accessToken}` },
+        },
+        opts
+      );
 
       if (res.code && res.code !== 0) {
         return jsonError(res.msg || `API error: ${res.code}`);

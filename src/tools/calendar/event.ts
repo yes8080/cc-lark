@@ -63,8 +63,8 @@ function parseTimeToTimestamp(input: string): string | null {
         parseInt(day),
         parseInt(hour) - 8, // Beijing time - 8 hours = UTC
         parseInt(minute),
-        parseInt(second ?? '0'),
-      ),
+        parseInt(second ?? '0')
+      )
     );
 
     return Math.floor(utcDate.getTime() / 1000).toString();
@@ -106,9 +106,16 @@ function unixTimestampToISO8601(raw: string | number | undefined): string | null
 const createActionSchema = {
   action: z.literal('create').describe('Create a calendar event'),
   summary: z.string().optional().describe('Event title (recommended)'),
-  start_time: z.string().describe('Start time (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00+08:00)'),
-  end_time: z.string().describe('End time (ISO 8601 with timezone, e.g., 2024-01-01T01:00:00+08:00)'),
-  calendar_id: z.string().optional().describe('Calendar ID (optional, uses primary if not provided)'),
+  start_time: z
+    .string()
+    .describe('Start time (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00+08:00)'),
+  end_time: z
+    .string()
+    .describe('End time (ISO 8601 with timezone, e.g., 2024-01-01T01:00:00+08:00)'),
+  calendar_id: z
+    .string()
+    .optional()
+    .describe('Calendar ID (optional, uses primary if not provided)'),
   description: z.string().optional().describe('Event description'),
   location_name: z.string().optional().describe('Location name'),
 };
@@ -117,19 +124,28 @@ const listActionSchema = {
   action: z.literal('list').describe('List calendar events in a time range'),
   start_time: z.string().describe('Start time (ISO 8601 with timezone, max 40 days range)'),
   end_time: z.string().describe('End time (ISO 8601 with timezone, max 40 days range)'),
-  calendar_id: z.string().optional().describe('Calendar ID (optional, uses primary if not provided)'),
+  calendar_id: z
+    .string()
+    .optional()
+    .describe('Calendar ID (optional, uses primary if not provided)'),
 };
 
 const getActionSchema = {
   action: z.literal('get').describe('Get a calendar event by ID'),
   event_id: z.string().describe('Event ID'),
-  calendar_id: z.string().optional().describe('Calendar ID (optional, uses primary if not provided)'),
+  calendar_id: z
+    .string()
+    .optional()
+    .describe('Calendar ID (optional, uses primary if not provided)'),
 };
 
 const patchActionSchema = {
   action: z.literal('patch').describe('Update a calendar event'),
   event_id: z.string().describe('Event ID'),
-  calendar_id: z.string().optional().describe('Calendar ID (optional, uses primary if not provided)'),
+  calendar_id: z
+    .string()
+    .optional()
+    .describe('Calendar ID (optional, uses primary if not provided)'),
   summary: z.string().optional().describe('New event title'),
   description: z.string().optional().describe('New event description'),
   start_time: z.string().optional().describe('New start time (ISO 8601 with timezone)'),
@@ -139,7 +155,10 @@ const patchActionSchema = {
 const deleteActionSchema = {
   action: z.literal('delete').describe('Delete a calendar event'),
   event_id: z.string().describe('Event ID'),
-  calendar_id: z.string().optional().describe('Calendar ID (optional, uses primary if not provided)'),
+  calendar_id: z
+    .string()
+    .optional()
+    .describe('Calendar ID (optional, uses primary if not provided)'),
   need_notification: z.boolean().optional().describe('Whether to notify attendees (default true)'),
 };
 
@@ -245,7 +264,10 @@ export function registerCalendarEventTool(registry: ToolRegistry): void {
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function getAccessToken(context: { larkClient: LarkClient | null; config: import('../../core/types.js').FeishuConfig }): Promise<string | ToolResult> {
+async function getAccessToken(context: {
+  larkClient: LarkClient | null;
+  config: import('../../core/types.js').FeishuConfig;
+}): Promise<string | ToolResult> {
   const { larkClient, config } = context;
   if (!larkClient) {
     return jsonError('LarkClient not initialized. Check FEISHU_APP_ID and FEISHU_APP_SECRET.');
@@ -308,7 +330,9 @@ async function resolveCalendarId(
   return cid;
 }
 
-function normalizeEventTimeFields(event: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+function normalizeEventTimeFields(
+  event: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
   if (!event) return event;
 
   const normalized: Record<string, unknown> = { ...event };
@@ -367,7 +391,9 @@ async function handleCreate(
 
   const calendarId = await resolveCalendarId(p.calendar_id, larkClient!, accessToken);
 
-  log.info(`create: summary=${p.summary ?? '(none)'}, start_time=${startTs}, end_time=${endTs}, calendar_id=${calendarId}`);
+  log.info(
+    `create: summary=${p.summary ?? '(none)'}, start_time=${startTs}, end_time=${endTs}, calendar_id=${calendarId}`
+  );
 
   const Lark = await import('@larksuiteoapi/node-sdk');
   const opts = Lark.withUserAccessToken(accessToken);
@@ -452,7 +478,9 @@ async function handleList(
   log.info(`list: returned ${data?.items?.length ?? 0} events`);
 
   // Normalize time fields
-  const events = (data?.items ?? []).map((item: unknown) => normalizeEventTimeFields(item as Record<string, unknown>));
+  const events = (data?.items ?? []).map((item: unknown) =>
+    normalizeEventTimeFields(item as Record<string, unknown>)
+  );
 
   return json({
     events,
@@ -525,7 +553,9 @@ async function handlePatch(
   if (p.start_time) {
     const startTs = parseTimeToTimestamp(p.start_time);
     if (!startTs) {
-      return jsonError("Invalid start_time format. Must use ISO 8601 with timezone, e.g., '2024-01-01T00:00:00+08:00'");
+      return jsonError(
+        "Invalid start_time format. Must use ISO 8601 with timezone, e.g., '2024-01-01T00:00:00+08:00'"
+      );
     }
     updateData.start_time = { timestamp: startTs };
   }
@@ -533,7 +563,9 @@ async function handlePatch(
   if (p.end_time) {
     const endTs = parseTimeToTimestamp(p.end_time);
     if (!endTs) {
-      return jsonError("Invalid end_time format. Must use ISO 8601 with timezone, e.g., '2024-01-01T00:00:00+08:00'");
+      return jsonError(
+        "Invalid end_time format. Must use ISO 8601 with timezone, e.g., '2024-01-01T00:00:00+08:00'"
+      );
     }
     updateData.end_time = { timestamp: endTs };
   }
@@ -541,7 +573,9 @@ async function handlePatch(
   if (p.summary) updateData.summary = p.summary;
   if (p.description) updateData.description = p.description;
 
-  log.info(`patch: calendar_id=${calendarId}, event_id=${p.event_id}, fields=${Object.keys(updateData).join(',')}`);
+  log.info(
+    `patch: calendar_id=${calendarId}, event_id=${p.event_id}, fields=${Object.keys(updateData).join(',')}`
+  );
 
   const Lark = await import('@larksuiteoapi/node-sdk');
   const opts = Lark.withUserAccessToken(accessToken);
@@ -581,7 +615,9 @@ async function handleDelete(
 
   const calendarId = await resolveCalendarId(p.calendar_id, larkClient!, accessToken);
 
-  log.info(`delete: calendar_id=${calendarId}, event_id=${p.event_id}, notify=${p.need_notification ?? true}`);
+  log.info(
+    `delete: calendar_id=${calendarId}, event_id=${p.event_id}, notify=${p.need_notification ?? true}`
+  );
 
   const Lark = await import('@larksuiteoapi/node-sdk');
   const opts = Lark.withUserAccessToken(accessToken);

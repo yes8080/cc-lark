@@ -44,25 +44,32 @@ const msgTypeEnum = z.enum([
 // We use separate tools for send and reply to avoid discriminated union issues
 const sendMessageSchema = {
   action: z.literal('send').describe('Send a message'),
-  receive_id_type: z.enum(['open_id', 'chat_id']).describe(
-    'Recipient ID type: open_id (private chat, ou_xxx) or chat_id (group chat, oc_xxx)'
-  ),
-  receive_id: z.string().describe(
-    "Recipient ID corresponding to receive_id_type. Use 'ou_xxx' for open_id, 'oc_xxx' for chat_id"
-  ),
+  receive_id_type: z
+    .enum(['open_id', 'chat_id'])
+    .describe('Recipient ID type: open_id (private chat, ou_xxx) or chat_id (group chat, oc_xxx)'),
+  receive_id: z
+    .string()
+    .describe(
+      "Recipient ID corresponding to receive_id_type. Use 'ou_xxx' for open_id, 'oc_xxx' for chat_id"
+    ),
   msg_type: msgTypeEnum.describe(
     'Message type: text (plain text), post (rich text), image, file, interactive (card), share_chat (group card), share_user (user card), etc.'
   ),
-  content: z.string().describe(
-    'Message content (JSON string), format depends on msg_type. ' +
-      'Examples: text -> \'{"text":"Hello"}\', ' +
-      'image -> \'{"image_key":"img_xxx"}\', ' +
-      'share_chat -> \'{"chat_id":"oc_xxx"}\', ' +
-      'post -> \'{"zh_cn":{"title":"Title","content":[[{"tag":"text","text":"Body"}]]}}\''
-  ),
-  uuid: z.string().optional().describe(
-    'Idempotent unique identifier. Same uuid will only send one message within 1 hour for deduplication.'
-  ),
+  content: z
+    .string()
+    .describe(
+      'Message content (JSON string), format depends on msg_type. ' +
+        'Examples: text -> \'{"text":"Hello"}\', ' +
+        'image -> \'{"image_key":"img_xxx"}\', ' +
+        'share_chat -> \'{"chat_id":"oc_xxx"}\', ' +
+        'post -> \'{"zh_cn":{"title":"Title","content":[[{"tag":"text","text":"Body"}]]}}\''
+    ),
+  uuid: z
+    .string()
+    .optional()
+    .describe(
+      'Idempotent unique identifier. Same uuid will only send one message within 1 hour for deduplication.'
+    ),
 };
 
 const replyMessageSchema = {
@@ -72,9 +79,12 @@ const replyMessageSchema = {
     'Message type: text (plain text), post (rich text), image, interactive (card), etc.'
   ),
   content: z.string().describe('Reply message content (JSON string), same format as send content'),
-  reply_in_thread: z.boolean().optional().describe(
-    'Whether to reply in thread. true = message appears in the thread, false (default) = appears in main chat flow'
-  ),
+  reply_in_thread: z
+    .boolean()
+    .optional()
+    .describe(
+      'Whether to reply in thread. true = message appears in the thread, false (default) = appears in main chat flow'
+    ),
   uuid: z.string().optional().describe('Idempotent unique identifier'),
 };
 

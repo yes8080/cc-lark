@@ -72,7 +72,9 @@ async function main(): Promise<void> {
       larkClient = LarkClient.getInstance();
       log.info('LarkClient initialized', { appId: larkClient.appId, brand: larkClient.brand });
     } catch (err) {
-      log.error('Failed to initialize LarkClient', { error: err instanceof Error ? err.message : String(err) });
+      log.error('Failed to initialize LarkClient', {
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
@@ -100,7 +102,9 @@ async function main(): Promise<void> {
       await server.close();
       log.info('Server closed');
     } catch (err) {
-      log.error('Error during shutdown', { error: err instanceof Error ? err.message : String(err) });
+      log.error('Error during shutdown', {
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
 
     process.exit(0);
@@ -125,7 +129,9 @@ async function main(): Promise<void> {
     await server.connect(transport);
     log.info('Server connected to stdio transport');
   } catch (err) {
-    log.error('Failed to connect server', { error: err instanceof Error ? err.message : String(err) });
+    log.error('Failed to connect server', {
+      error: err instanceof Error ? err.message : String(err),
+    });
     process.exit(1);
   }
 }

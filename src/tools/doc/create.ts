@@ -54,7 +54,9 @@ function validateCreateDocParams(p: Record<string, unknown>): void {
   // Only one of folder_token, wiki_node, wiki_space can be provided
   const flags = [p.folder_token, p.wiki_node, p.wiki_space].filter(Boolean);
   if (flags.length > 1) {
-    throw new Error('create-doc: folder_token / wiki_node / wiki_space are mutually exclusive, provide only one');
+    throw new Error(
+      'create-doc: folder_token / wiki_node / wiki_space are mutually exclusive, provide only one'
+    );
   }
 }
 
@@ -178,7 +180,9 @@ async function handleCreateDoc(
         { userOpenId }
       );
     }
-    log.error('Create document failed', { error: err instanceof Error ? err.message : String(err) });
+    log.error('Create document failed', {
+      error: err instanceof Error ? err.message : String(err),
+    });
     return jsonError(err instanceof Error ? err.message : String(err));
   }
 }

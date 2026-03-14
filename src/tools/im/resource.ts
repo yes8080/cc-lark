@@ -69,13 +69,19 @@ const MIME_TO_EXT: Record<string, string> = {
 // ---------------------------------------------------------------------------
 
 const fetchResourceShape = {
-  message_id: z.string().describe('Message ID (om_xxx format), obtained from message events or message list'),
-  file_key: z.string().describe(
-    'Resource key from message body. For images use image_key (img_xxx), for files use file_key (file_xxx)'
-  ),
-  type: z.enum(['image', 'file']).describe(
-    'Resource type: image (image in image message) or file (file/audio/video in file message)'
-  ),
+  message_id: z
+    .string()
+    .describe('Message ID (om_xxx format), obtained from message events or message list'),
+  file_key: z
+    .string()
+    .describe(
+      'Resource key from message body. For images use image_key (img_xxx), for files use file_key (file_xxx)'
+    ),
+  type: z
+    .enum(['image', 'file'])
+    .describe(
+      'Resource type: image (image in image message) or file (file/audio/video in file message)'
+    ),
 };
 
 // ---------------------------------------------------------------------------
@@ -214,7 +220,9 @@ export function registerImFetchResourceTool(registry: ToolRegistry): void {
             { userOpenId }
           );
         }
-        log.error('fetch_resource failed', { error: err instanceof Error ? err.message : String(err) });
+        log.error('fetch_resource failed', {
+          error: err instanceof Error ? err.message : String(err),
+        });
         return jsonError(err instanceof Error ? err.message : String(err));
       }
     },

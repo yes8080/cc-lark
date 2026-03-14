@@ -21,7 +21,10 @@ const log = logger('tools:wiki:node');
 const listActionSchema = {
   action: z.literal('list').describe('List wiki nodes in a space'),
   space_id: z.string().describe('Space ID'),
-  parent_node_token: z.string().optional().describe('Parent node token (optional, for listing sub-nodes)'),
+  parent_node_token: z
+    .string()
+    .optional()
+    .describe('Parent node token (optional, for listing sub-nodes)'),
   page_size: z.number().min(1).max(50).optional().describe('Page size (default 50)'),
   page_token: z.string().optional().describe('Pagination token'),
 };
@@ -31,7 +34,10 @@ const getActionSchema = {
   token: z.string().describe('Node token'),
 };
 
-async function getAccessToken(context: { larkClient: LarkClient | null; config: import('../../core/types.js').FeishuConfig }): Promise<string | ToolResult> {
+async function getAccessToken(context: {
+  larkClient: LarkClient | null;
+  config: import('../../core/types.js').FeishuConfig;
+}): Promise<string | ToolResult> {
   const { larkClient, config } = context;
   if (!larkClient) return jsonError('LarkClient not initialized.');
   const { appId, appSecret, brand } = config;
@@ -111,10 +117,13 @@ export function registerWikiNodeTool(registry: ToolRegistry): void {
 
       // Use direct request since SDK doesn't have a get method for node
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const res = await (larkClient!.sdk as any).request({
-        method: 'GET',
-        url: `/open-apis/wiki/v2/spaces/get_node?token=${p.token}`,
-      }, opts);
+      const res = await (larkClient!.sdk as any).request(
+        {
+          method: 'GET',
+          url: `/open-apis/wiki/v2/spaces/get_node?token=${p.token}`,
+        },
+        opts
+      );
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if ((res as any).code !== undefined && (res as any).code !== 0) {

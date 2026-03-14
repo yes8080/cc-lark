@@ -34,8 +34,17 @@ const createActionSchema = {
   app_token: z.string().describe('Bitable app token'),
   table_id: z.string().describe('Table ID'),
   field_name: z.string().describe('Field name'),
-  type: z.number().describe('Field type (1=text, 2=number, 3=single_select, 4=multi_select, 5=date, 7=checkbox, 11=person, 13=phone, 15=url, 17=attachment, 1001=created_time, 1002=modified_time, etc.)'),
-  property: z.any().optional().describe('Field property configuration (varies by type). IMPORTANT: URL fields (type=15) and checkbox fields (type=7) must NOT have this parameter'),
+  type: z
+    .number()
+    .describe(
+      'Field type (1=text, 2=number, 3=single_select, 4=multi_select, 5=date, 7=checkbox, 11=person, 13=phone, 15=url, 17=attachment, 1001=created_time, 1002=modified_time, etc.)'
+    ),
+  property: z
+    .any()
+    .optional()
+    .describe(
+      'Field property configuration (varies by type). IMPORTANT: URL fields (type=15) and checkbox fields (type=7) must NOT have this parameter'
+    ),
 };
 
 const listActionSchema = {
@@ -52,7 +61,10 @@ const updateActionSchema = {
   app_token: z.string().describe('Bitable app token'),
   table_id: z.string().describe('Table ID'),
   field_id: z.string().describe('Field ID'),
-  field_name: z.string().optional().describe('New field name (optional, will auto-fetch if not provided)'),
+  field_name: z
+    .string()
+    .optional()
+    .describe('New field name (optional, will auto-fetch if not provided)'),
   type: z.number().optional().describe('Field type (optional, will auto-fetch if not provided)'),
   property: z.any().optional().describe('Field property configuration (optional)'),
 };
@@ -154,7 +166,10 @@ export function registerBitableFieldTool(registry: ToolRegistry): void {
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function getAccessToken(context: { larkClient: LarkClient | null; config: import('../../core/types.js').FeishuConfig }): Promise<string | ToolResult> {
+async function getAccessToken(context: {
+  larkClient: LarkClient | null;
+  config: import('../../core/types.js').FeishuConfig;
+}): Promise<string | ToolResult> {
   const { larkClient, config } = context;
   if (!larkClient) {
     return jsonError('LarkClient not initialized. Check FEISHU_APP_ID and FEISHU_APP_SECRET.');
@@ -209,7 +224,9 @@ async function handleCreate(
   }
   const accessToken = accessTokenResult;
 
-  log.info(`create: app_token=${p.app_token}, table_id=${p.table_id}, field_name=${p.field_name}, type=${p.type}`);
+  log.info(
+    `create: app_token=${p.app_token}, table_id=${p.table_id}, field_name=${p.field_name}, type=${p.type}`
+  );
 
   const Lark = await import('@larksuiteoapi/node-sdk');
   const opts = Lark.withUserAccessToken(accessToken);
@@ -219,7 +236,9 @@ async function handleCreate(
   let propertyToSend: any = p.property;
   if ((p.type === 15 || p.type === 7) && p.property !== undefined) {
     const fieldTypeName = p.type === 15 ? 'URL' : 'Checkbox';
-    log.warn(`create: ${fieldTypeName} field (type=${p.type}) detected with property. Removing property to avoid API error.`);
+    log.warn(
+      `create: ${fieldTypeName} field (type=${p.type}) detected with property. Removing property to avoid API error.`
+    );
     propertyToSend = undefined;
   }
 
@@ -257,7 +276,9 @@ async function handleList(
   }
   const accessToken = accessTokenResult;
 
-  log.info(`list: app_token=${p.app_token}, table_id=${p.table_id}, view_id=${p.view_id ?? 'none'}`);
+  log.info(
+    `list: app_token=${p.app_token}, table_id=${p.table_id}, view_id=${p.view_id ?? 'none'}`
+  );
 
   const Lark = await import('@larksuiteoapi/node-sdk');
   const opts = Lark.withUserAccessToken(accessToken);

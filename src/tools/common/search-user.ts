@@ -21,7 +21,10 @@ const searchUserSchema = {
   page_token: z.string().optional().describe('Pagination token'),
 };
 
-async function getAccessToken(context: { larkClient: LarkClient | null; config: import('../../core/types.js').FeishuConfig }): Promise<string | ToolResult> {
+async function getAccessToken(context: {
+  larkClient: LarkClient | null;
+  config: import('../../core/types.js').FeishuConfig;
+}): Promise<string | ToolResult> {
   const { larkClient, config } = context;
   if (!larkClient) return jsonError('LarkClient not initialized.');
   const { appId, appSecret, brand } = config;
@@ -43,7 +46,8 @@ async function getAccessToken(context: { larkClient: LarkClient | null; config: 
 export function registerSearchUserTool(registry: ToolRegistry): void {
   registry.register({
     name: 'feishu_search_user',
-    description: 'Search for Feishu users by name, phone, or email.\n\nRequires OAuth authorization.',
+    description:
+      'Search for Feishu users by name, phone, or email.\n\nRequires OAuth authorization.',
     inputSchema: searchUserSchema,
     handler: async (args, context) => {
       const p = args as z.infer<ReturnType<typeof z.object<typeof searchUserSchema>>>;
@@ -67,12 +71,15 @@ export function registerSearchUserTool(registry: ToolRegistry): void {
 
       // Use direct request since SDK search API may not be fully typed
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const res = await (larkClient!.sdk as any).request({
-        method: 'GET',
-        url: '/open-apis/search/v1/user',
-        params: queryParams,
-        headers: { Authorization: `Bearer ${accessToken}` },
-      }, opts);
+      const res = await (larkClient!.sdk as any).request(
+        {
+          method: 'GET',
+          url: '/open-apis/search/v1/user',
+          params: queryParams,
+          headers: { Authorization: `Bearer ${accessToken}` },
+        },
+        opts
+      );
 
       // Check for API error
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

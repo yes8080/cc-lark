@@ -50,16 +50,17 @@ const updateDocSchema = {
   selection_with_ellipsis: z
     .string()
     .optional()
-    .describe('Selection expression: start_content...end_content (mutually exclusive with selection_by_title)'),
+    .describe(
+      'Selection expression: start_content...end_content (mutually exclusive with selection_by_title)'
+    ),
   selection_by_title: z
     .string()
     .optional()
-    .describe('Title selection: e.g., ## Section Title (mutually exclusive with selection_with_ellipsis)'),
+    .describe(
+      'Title selection: e.g., ## Section Title (mutually exclusive with selection_with_ellipsis)'
+    ),
   new_title: z.string().optional().describe('New document title (optional)'),
-  task_id: z
-    .string()
-    .optional()
-    .describe('Async task ID for checking task status (optional)'),
+  task_id: z.string().optional().describe('Async task ID for checking task status (optional)'),
 };
 
 // ---------------------------------------------------------------------------
@@ -234,7 +235,9 @@ async function handleUpdateDoc(
         { userOpenId }
       );
     }
-    log.error('Update document failed', { error: err instanceof Error ? err.message : String(err) });
+    log.error('Update document failed', {
+      error: err instanceof Error ? err.message : String(err),
+    });
     return jsonError(err instanceof Error ? err.message : String(err));
   }
 }

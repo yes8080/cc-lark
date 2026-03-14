@@ -23,7 +23,11 @@ import {
 import { resolveOAuthEndpoints } from './device-flow.js';
 import { logger } from '../utils/logger.js';
 import { getUserAgent } from './version.js';
-import { REFRESH_TOKEN_IRRECOVERABLE, TOKEN_RETRY_CODES, NeedAuthorizationError } from './api-error.js';
+import {
+  REFRESH_TOKEN_IRRECOVERABLE,
+  TOKEN_RETRY_CODES,
+  NeedAuthorizationError,
+} from './api-error.js';
 
 const log = logger('uat-client');
 
@@ -84,7 +88,10 @@ const refreshLocks = new Map<string, Promise<StoredUAToken | null>>();
 // Refresh implementation
 // ---------------------------------------------------------------------------
 
-async function doRefreshToken(opts: UATCallOptions, stored: StoredUAToken): Promise<StoredUAToken | null> {
+async function doRefreshToken(
+  opts: UATCallOptions,
+  stored: StoredUAToken
+): Promise<StoredUAToken | null> {
   // refresh_token already expired → can't refresh, need re-auth.
   if (Date.now() >= stored.refreshExpiresAt) {
     log.info(`refresh_token expired for ${opts.userOpenId}, clearing`);
@@ -153,7 +160,10 @@ async function doRefreshToken(opts: UATCallOptions, stored: StoredUAToken): Prom
 /**
  * Refresh with per-user locking.
  */
-async function refreshWithLock(opts: UATCallOptions, stored: StoredUAToken): Promise<StoredUAToken | null> {
+async function refreshWithLock(
+  opts: UATCallOptions,
+  stored: StoredUAToken
+): Promise<StoredUAToken | null> {
   const key = `${opts.appId}:${opts.userOpenId}`;
 
   // Another refresh is already in-flight – wait for it and re-read.

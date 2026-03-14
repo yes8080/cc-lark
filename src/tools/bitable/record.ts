@@ -34,12 +34,27 @@ const log = logger('tools:bitable:record');
 
 const filterConditionSchema = z.object({
   field_name: z.string().describe('Field name'),
-  operator: z.enum(['is', 'isNot', 'contains', 'doesNotContain', 'isEmpty', 'isNotEmpty', 'isGreater', 'isGreaterEqual', 'isLess', 'isLessEqual']).describe('Filter operator'),
+  operator: z
+    .enum([
+      'is',
+      'isNot',
+      'contains',
+      'doesNotContain',
+      'isEmpty',
+      'isNotEmpty',
+      'isGreater',
+      'isGreaterEqual',
+      'isLess',
+      'isLessEqual',
+    ])
+    .describe('Filter operator'),
   value: z.array(z.string()).optional().describe('Filter value (omit for isEmpty/isNotEmpty)'),
 });
 
 const filterSchema = z.object({
-  conjunction: z.enum(['and', 'or']).describe('Filter conjunction: and (all match) or or (any match)'),
+  conjunction: z
+    .enum(['and', 'or'])
+    .describe('Filter conjunction: and (all match) or or (any match)'),
   conditions: z.array(filterConditionSchema).describe('Filter conditions'),
 });
 
@@ -60,10 +75,16 @@ const listActionSchema = {
   app_token: z.string().describe('Bitable app token'),
   table_id: z.string().describe('Table ID'),
   view_id: z.string().optional().describe('View ID (optional, recommended for better performance)'),
-  field_names: z.array(z.string()).optional().describe('Field names to return (optional, returns all if not specified)'),
+  field_names: z
+    .array(z.string())
+    .optional()
+    .describe('Field names to return (optional, returns all if not specified)'),
   filter: filterSchema.optional().describe('Filter conditions'),
   sort: z.array(sortSchema).optional().describe('Sort rules'),
-  automatic_fields: z.boolean().optional().describe('Return automatic fields (created_time, last_modified_time, etc.)'),
+  automatic_fields: z
+    .boolean()
+    .optional()
+    .describe('Return automatic fields (created_time, last_modified_time, etc.)'),
   page_size: z.number().min(1).max(500).optional().describe('Page size (default 50)'),
   page_token: z.string().optional().describe('Pagination token'),
 };
@@ -87,14 +108,20 @@ const batchCreateActionSchema = {
   action: z.literal('batch_create').describe('Create multiple records at once (max 500)'),
   app_token: z.string().describe('Bitable app token'),
   table_id: z.string().describe('Table ID'),
-  records: z.array(z.object({ fields: z.record(z.any()) })).max(500).describe('Records to create'),
+  records: z
+    .array(z.object({ fields: z.record(z.any()) }))
+    .max(500)
+    .describe('Records to create'),
 };
 
 const batchUpdateActionSchema = {
   action: z.literal('batch_update').describe('Update multiple records at once (max 500)'),
   app_token: z.string().describe('Bitable app token'),
   table_id: z.string().describe('Table ID'),
-  records: z.array(z.object({ record_id: z.string(), fields: z.record(z.any()) })).max(500).describe('Records to update'),
+  records: z
+    .array(z.object({ record_id: z.string(), fields: z.record(z.any()) }))
+    .max(500)
+    .describe('Records to update'),
 };
 
 const batchDeleteActionSchema = {
@@ -249,7 +276,10 @@ export function registerBitableRecordTool(registry: ToolRegistry): void {
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function getAccessToken(context: { larkClient: LarkClient | null; config: import('../../core/types.js').FeishuConfig }): Promise<string | ToolResult> {
+async function getAccessToken(context: {
+  larkClient: LarkClient | null;
+  config: import('../../core/types.js').FeishuConfig;
+}): Promise<string | ToolResult> {
   const { larkClient, config } = context;
   if (!larkClient) {
     return jsonError('LarkClient not initialized. Check FEISHU_APP_ID and FEISHU_APP_SECRET.');
@@ -341,7 +371,9 @@ async function handleList(
   }
   const accessToken = accessTokenResult;
 
-  log.info(`list: app_token=${p.app_token}, table_id=${p.table_id}, view_id=${p.view_id ?? 'none'}, filter=${p.filter ? 'yes' : 'no'}`);
+  log.info(
+    `list: app_token=${p.app_token}, table_id=${p.table_id}, view_id=${p.view_id ?? 'none'}, filter=${p.filter ? 'yes' : 'no'}`
+  );
 
   const Lark = await import('@larksuiteoapi/node-sdk');
   const opts = Lark.withUserAccessToken(accessToken);
@@ -357,7 +389,9 @@ async function handleList(
     if (filter.conditions) {
       filter.conditions = filter.conditions.map((cond) => {
         if ((cond.operator === 'isEmpty' || cond.operator === 'isNotEmpty') && !cond.value) {
-          log.warn(`list: ${cond.operator} operator detected without value. Auto-adding value=[] to avoid API error.`);
+          log.warn(
+            `list: ${cond.operator} operator detected without value. Auto-adding value=[] to avoid API error.`
+          );
           return { ...cond, value: [] };
         }
         return cond;
@@ -473,7 +507,9 @@ async function handleBatchCreate(
   }
   const accessToken = accessTokenResult;
 
-  log.info(`batch_create: app_token=${p.app_token}, table_id=${p.table_id}, records_count=${p.records.length}`);
+  log.info(
+    `batch_create: app_token=${p.app_token}, table_id=${p.table_id}, records_count=${p.records.length}`
+  );
 
   const Lark = await import('@larksuiteoapi/node-sdk');
   const opts = Lark.withUserAccessToken(accessToken);
@@ -506,7 +542,9 @@ async function handleBatchUpdate(
   }
   const accessToken = accessTokenResult;
 
-  log.info(`batch_update: app_token=${p.app_token}, table_id=${p.table_id}, records_count=${p.records.length}`);
+  log.info(
+    `batch_update: app_token=${p.app_token}, table_id=${p.table_id}, records_count=${p.records.length}`
+  );
 
   const Lark = await import('@larksuiteoapi/node-sdk');
   const opts = Lark.withUserAccessToken(accessToken);
@@ -539,7 +577,9 @@ async function handleBatchDelete(
   }
   const accessToken = accessTokenResult;
 
-  log.info(`batch_delete: app_token=${p.app_token}, table_id=${p.table_id}, record_ids_count=${p.record_ids.length}`);
+  log.info(
+    `batch_delete: app_token=${p.app_token}, table_id=${p.table_id}, record_ids_count=${p.record_ids.length}`
+  );
 
   const Lark = await import('@larksuiteoapi/node-sdk');
   const opts = Lark.withUserAccessToken(accessToken);

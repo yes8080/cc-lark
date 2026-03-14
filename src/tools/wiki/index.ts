@@ -19,6 +19,12 @@ export function registerWikiTools(registry: ToolRegistry): void {
   registerWikiNodeTool(registry);
 
   log.info('Wiki tools registered', {
-    tools: ['feishu_wiki_space_list', 'feishu_wiki_space_get', 'feishu_wiki_space_create', 'feishu_wiki_node_list', 'feishu_wiki_node_get'].join(', '),
+    tools: [
+      'feishu_wiki_space_list',
+      'feishu_wiki_space_get',
+      'feishu_wiki_space_create',
+      'feishu_wiki_node_list',
+      'feishu_wiki_node_get',
+    ].join(', '),
   });
 }

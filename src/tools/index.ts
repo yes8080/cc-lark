@@ -9,7 +9,10 @@
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { ZodRawShapeCompat, ShapeOutput } from '@modelcontextprotocol/sdk/server/zod-compat.js';
+import type {
+  ZodRawShapeCompat,
+  ShapeOutput,
+} from '@modelcontextprotocol/sdk/server/zod-compat.js';
 import type { FeishuConfig } from '../core/types.js';
 import type { LarkClient } from '../core/lark-client.js';
 import { logger } from '../utils/logger.js';

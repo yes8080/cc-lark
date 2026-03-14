@@ -50,8 +50,8 @@ function parseTimeToTimestampMs(input: string): string | null {
         parseInt(day),
         parseInt(hour) - 8,
         parseInt(minute),
-        parseInt(second ?? '0'),
-      ),
+        parseInt(second ?? '0')
+      )
     );
 
     return utcDate.getTime().toString();
@@ -92,7 +92,10 @@ const patchActionSchema = {
   completed: z.boolean().optional().describe('Mark as completed (true) or incomplete (false)'),
 };
 
-async function getAccessToken(context: { larkClient: LarkClient | null; config: import('../../core/types.js').FeishuConfig }): Promise<string | ToolResult> {
+async function getAccessToken(context: {
+  larkClient: LarkClient | null;
+  config: import('../../core/types.js').FeishuConfig;
+}): Promise<string | ToolResult> {
   const { larkClient, config } = context;
   if (!larkClient) return jsonError('LarkClient not initialized.');
   const { appId, appSecret, brand } = config;
@@ -100,13 +103,15 @@ async function getAccessToken(context: { larkClient: LarkClient | null; config: 
 
   const { listStoredTokens } = await import('../../core/token-store.js');
   const tokens = await listStoredTokens(appId);
-  if (tokens.length === 0) return jsonError('No user authorization found. Use feishu_oauth tool first.');
+  if (tokens.length === 0)
+    return jsonError('No user authorization found. Use feishu_oauth tool first.');
   const userOpenId = tokens[0].userOpenId;
 
   try {
     return await getValidAccessToken({ userOpenId, appId, appSecret, domain: brand ?? 'feishu' });
   } catch (err) {
-    if (err instanceof NeedAuthorizationError) return jsonError('User authorization expired. Re-authorize with feishu_oauth.');
+    if (err instanceof NeedAuthorizationError)
+      return jsonError('User authorization expired. Re-authorize with feishu_oauth.');
     throw err;
   }
 }
@@ -134,16 +139,22 @@ export function registerTaskTool(registry: ToolRegistry): void {
       if (p.description) taskData.description = p.description;
       if (p.due_timestamp) {
         const ts = parseTimeToTimestampMs(p.due_timestamp);
-        if (!ts) return jsonError("Invalid due_timestamp format. Use ISO 8601 with timezone, e.g., '2024-01-01T00:00:00+08:00'");
+        if (!ts)
+          return jsonError(
+            "Invalid due_timestamp format. Use ISO 8601 with timezone, e.g., '2024-01-01T00:00:00+08:00'"
+          );
         taskData.due = { timestamp: ts, is_all_day: false };
       }
       if (p.start_timestamp) {
         const ts = parseTimeToTimestampMs(p.start_timestamp);
-        if (!ts) return jsonError("Invalid start_timestamp format. Use ISO 8601 with timezone.");
+        if (!ts) return jsonError('Invalid start_timestamp format. Use ISO 8601 with timezone.');
         taskData.start = { timestamp: ts, is_all_day: false };
       }
 
-      const res = await larkClient!.sdk.task.v2.task.create({ data: taskData, params: { user_id_type: 'open_id' } }, opts);
+      const res = await larkClient!.sdk.task.v2.task.create(
+        { data: taskData, params: { user_id_type: 'open_id' } },
+        opts
+      );
       assertLarkOk(res);
 
       return json({ task: res.data?.task });
@@ -195,7 +206,14 @@ export function registerTaskTool(registry: ToolRegistry): void {
       const opts = Lark.withUserAccessToken(accessToken);
 
       const res = await larkClient!.sdk.task.v2.task.list(
-        { params: { page_size: p.page_size, page_token: p.page_token, completed: p.completed, user_id_type: 'open_id' } },
+        {
+          params: {
+            page_size: p.page_size,
+            page_token: p.page_token,
+            completed: p.completed,
+            user_id_type: 'open_id',
+          },
+        },
         opts
       );
       assertLarkOk(res);
@@ -232,17 +250,23 @@ export function registerTaskTool(registry: ToolRegistry): void {
       const updateData: any = {};
       const updateFields: string[] = [];
 
-      if (p.summary !== undefined) { updateData.summary = p.summary; updateFields.push('summary'); }
-      if (p.description !== undefined) { updateData.description = p.description; updateFields.push('description'); }
+      if (p.summary !== undefined) {
+        updateData.summary = p.summary;
+        updateFields.push('summary');
+      }
+      if (p.description !== undefined) {
+        updateData.description = p.description;
+        updateFields.push('description');
+      }
       if (p.due_timestamp) {
         const ts = parseTimeToTimestampMs(p.due_timestamp);
-        if (!ts) return jsonError("Invalid due_timestamp format.");
+        if (!ts) return jsonError('Invalid due_timestamp format.');
         updateData.due = { timestamp: ts, is_all_day: false };
         updateFields.push('due');
       }
       if (p.start_timestamp) {
         const ts = parseTimeToTimestampMs(p.start_timestamp);
-        if (!ts) return jsonError("Invalid start_timestamp format.");
+        if (!ts) return jsonError('Invalid start_timestamp format.');
         updateData.start = { timestamp: ts, is_all_day: false };
         updateFields.push('start');
       }
@@ -252,7 +276,11 @@ export function registerTaskTool(registry: ToolRegistry): void {
       }
 
       const res = await larkClient!.sdk.task.v2.task.patch(
-        { path: { task_guid: p.task_guid }, data: { task: updateData, update_fields: updateFields }, params: { user_id_type: 'open_id' } },
+        {
+          path: { task_guid: p.task_guid },
+          data: { task: updateData, update_fields: updateFields },
+          params: { user_id_type: 'open_id' },
+        },
         opts
       );
       assertLarkOk(res);

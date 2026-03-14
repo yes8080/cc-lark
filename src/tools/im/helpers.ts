@@ -95,7 +95,12 @@ export { assertLarkOk };
 
 /** Common pagination schema */
 export const paginationSchema = {
-  page_size: z.number().min(1).max(50).optional().describe('Number of results per page (1-50), default 50'),
+  page_size: z
+    .number()
+    .min(1)
+    .max(50)
+    .optional()
+    .describe('Number of results per page (1-50), default 50'),
   page_token: z.string().optional().describe('Pagination token for next page'),
 };
 
@@ -103,4 +108,6 @@ export const paginationSchema = {
 export const sortRuleSchema = z
   .enum(['create_time_asc', 'create_time_desc'])
   .optional()
-  .describe('Sort order: create_time_asc (oldest first) or create_time_desc (newest first, default)');
+  .describe(
+    'Sort order: create_time_asc (oldest first) or create_time_desc (newest first, default)'
+  );

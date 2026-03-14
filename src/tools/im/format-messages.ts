@@ -97,11 +97,7 @@ export function extractMentionOpenId(id: unknown): string {
  * Convert raw message content to AI-readable text.
  * This is a simplified version - full converter handles all message types.
  */
-export function convertMessageContent(
-  raw: string,
-  msgType: string,
-  _ctx: ConvertContext
-): string {
+export function convertMessageContent(raw: string, msgType: string, _ctx: ConvertContext): string {
   if (!raw) return '';
 
   try {

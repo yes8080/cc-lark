@@ -30,7 +30,10 @@ const getActionSchema = {
   chat_id: z.string().describe('Chat ID (format: oc_xxx)'),
 };
 
-async function getAccessToken(context: { larkClient: LarkClient | null; config: import('../../core/types.js').FeishuConfig }): Promise<string | ToolResult> {
+async function getAccessToken(context: {
+  larkClient: LarkClient | null;
+  config: import('../../core/types.js').FeishuConfig;
+}): Promise<string | ToolResult> {
   const { larkClient, config } = context;
   if (!larkClient) return jsonError('LarkClient not initialized.');
   const { appId, appSecret, brand } = config;

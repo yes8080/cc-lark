@@ -18,11 +18,20 @@ const log = logger('tools:common:get-user');
 
 // Schemas
 const getUserSchema = {
-  user_id: z.string().optional().describe('User ID (format: ou_xxx). If not provided, returns current user info'),
-  user_id_type: z.enum(['open_id', 'union_id', 'user_id']).optional().describe('User ID type (default: open_id)'),
+  user_id: z
+    .string()
+    .optional()
+    .describe('User ID (format: ou_xxx). If not provided, returns current user info'),
+  user_id_type: z
+    .enum(['open_id', 'union_id', 'user_id'])
+    .optional()
+    .describe('User ID type (default: open_id)'),
 };
 
-async function getAccessToken(context: { larkClient: LarkClient | null; config: import('../../core/types.js').FeishuConfig }): Promise<string | ToolResult> {
+async function getAccessToken(context: {
+  larkClient: LarkClient | null;
+  config: import('../../core/types.js').FeishuConfig;
+}): Promise<string | ToolResult> {
   const { larkClient, config } = context;
   if (!larkClient) return jsonError('LarkClient not initialized.');
   const { appId, appSecret, brand } = config;
@@ -44,7 +53,8 @@ async function getAccessToken(context: { larkClient: LarkClient | null; config: 
 export function registerGetUserTool(registry: ToolRegistry): void {
   registry.register({
     name: 'feishu_get_user',
-    description: 'Get Feishu user information. Returns current user if user_id not provided.\n\nRequires OAuth authorization.',
+    description:
+      'Get Feishu user information. Returns current user if user_id not provided.\n\nRequires OAuth authorization.',
     inputSchema: getUserSchema,
     handler: async (args, context) => {
       const p = args as z.infer<ReturnType<typeof z.object<typeof getUserSchema>>>;
@@ -70,7 +80,9 @@ export function registerGetUserTool(registry: ToolRegistry): void {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const e = res as any;
             if (e.code === 41050) {
-              return jsonError('Permission denied. User visibility scope limits access to this user.');
+              return jsonError(
+                'Permission denied. User visibility scope limits access to this user.'
+              );
             }
             return jsonError(`API Error: code=${e.code}, msg=${e.msg}`);
           }
@@ -79,9 +91,15 @@ export function registerGetUserTool(registry: ToolRegistry): void {
           return json({ user: res.data });
         } catch (invokeErr) {
           // Handle 41050 error
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          if (invokeErr && typeof invokeErr === 'object' && (invokeErr as any).response?.data?.code === 41050) {
-            return jsonError('Permission denied. User visibility scope limits access to this user.');
+          if (
+            invokeErr &&
+            typeof invokeErr === 'object' &&
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (invokeErr as any).response?.data?.code === 41050
+          ) {
+            return jsonError(
+              'Permission denied. User visibility scope limits access to this user.'
+            );
           }
           throw invokeErr;
         }
@@ -106,7 +124,9 @@ export function registerGetUserTool(registry: ToolRegistry): void {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const e = res as any;
           if (e.code === 41050) {
-            return jsonError('Permission denied. User visibility scope limits access to this user.');
+            return jsonError(
+              'Permission denied. User visibility scope limits access to this user.'
+            );
           }
           return jsonError(`API Error: code=${e.code}, msg=${e.msg}`);
         }
@@ -114,8 +134,12 @@ export function registerGetUserTool(registry: ToolRegistry): void {
         log.info(`get_user: user ${p.user_id} fetched successfully`);
         return json({ user: res.data?.user });
       } catch (invokeErr) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        if (invokeErr && typeof invokeErr === 'object' && (invokeErr as any).response?.data?.code === 41050) {
+        if (
+          invokeErr &&
+          typeof invokeErr === 'object' &&
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (invokeErr as any).response?.data?.code === 41050
+        ) {
           return jsonError('Permission denied. User visibility scope limits access to this user.');
         }
         throw invokeErr;
