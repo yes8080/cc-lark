@@ -18,7 +18,13 @@ import type { ToolRegistry } from '../index.js';
 import { LarkClient } from '../../core/lark-client.js';
 import { getValidAccessToken, NeedAuthorizationError } from '../../core/uat-client.js';
 import { assertLarkOk } from '../../core/api-error.js';
-import { json, jsonError, getCachedUserName, setCachedUserNames, type ToolResult } from './helpers.js';
+import {
+  json,
+  jsonError,
+  getCachedUserName,
+  setCachedUserNames,
+  type ToolResult,
+} from './helpers.js';
 import { parseTimeRangeToSeconds, dateTimeToSecondsString } from './time-utils.js';
 import {
   formatMessageList,
@@ -37,11 +43,18 @@ const sortRuleShape = {
   sort_rule: z
     .enum(['create_time_asc', 'create_time_desc'])
     .optional()
-    .describe('Sort order: create_time_asc (oldest first) or create_time_desc (newest first, default)'),
+    .describe(
+      'Sort order: create_time_asc (oldest first) or create_time_desc (newest first, default)'
+    ),
 };
 
 const paginationShape = {
-  page_size: z.number().min(1).max(50).optional().describe('Number of results per page (1-50), default 50'),
+  page_size: z
+    .number()
+    .min(1)
+    .max(50)
+    .optional()
+    .describe('Number of results per page (1-50), default 50'),
   page_token: z.string().optional().describe('Pagination token for next page'),
 };
 
@@ -55,11 +68,15 @@ const timeRangeShape = {
   start_time: z
     .string()
     .optional()
-    .describe('Start time (ISO 8601 format, e.g., 2026-02-27T00:00:00+08:00). Mutually exclusive with relative_time.'),
+    .describe(
+      'Start time (ISO 8601 format, e.g., 2026-02-27T00:00:00+08:00). Mutually exclusive with relative_time.'
+    ),
   end_time: z
     .string()
     .optional()
-    .describe('End time (ISO 8601 format, e.g., 2026-02-27T23:59:59+08:00). Mutually exclusive with relative_time.'),
+    .describe(
+      'End time (ISO 8601 format, e.g., 2026-02-27T23:59:59+08:00). Mutually exclusive with relative_time.'
+    ),
 };
 
 // ---------------------------------------------------------------------------
@@ -70,11 +87,15 @@ const getMessagesShape = {
   open_id: z
     .string()
     .optional()
-    .describe('User open_id (ou_xxx) to get 1-on-1 chat messages. Mutually exclusive with chat_id.'),
+    .describe(
+      'User open_id (ou_xxx) to get 1-on-1 chat messages. Mutually exclusive with chat_id.'
+    ),
   chat_id: z
     .string()
     .optional()
-    .describe('Chat ID (oc_xxx) to get group or 1-on-1 chat messages. Mutually exclusive with open_id.'),
+    .describe(
+      'Chat ID (oc_xxx) to get group or 1-on-1 chat messages. Mutually exclusive with open_id.'
+    ),
   ...sortRuleShape,
   ...paginationShape,
   ...timeRangeShape,
@@ -98,19 +119,29 @@ const searchMessagesShape = {
   query: z
     .string()
     .optional()
-    .describe('Search keyword to match message content. Can be empty string for no content filter.'),
+    .describe(
+      'Search keyword to match message content. Can be empty string for no content filter.'
+    ),
   sender_ids: z
     .array(z.string())
     .optional()
-    .describe("Sender open_id list (ou_xxx). Use search_user tool to find open_id by name if needed."),
+    .describe(
+      'Sender open_id list (ou_xxx). Use search_user tool to find open_id by name if needed.'
+    ),
   chat_id: z.string().optional().describe('Chat ID (oc_xxx) to limit search scope'),
   mention_ids: z.array(z.string()).optional().describe('Mentioned user open_id list (ou_xxx)'),
   message_type: z
     .enum(['file', 'image', 'media'])
     .optional()
     .describe('Message type filter: file / image / media. Empty for all types.'),
-  sender_type: z.enum(['user', 'bot', 'all']).optional().describe('Sender type: user / bot / all. Default user.'),
-  chat_type: z.enum(['group', 'p2p']).optional().describe('Chat type: group (group chat) / p2p (private chat)'),
+  sender_type: z
+    .enum(['user', 'bot', 'all'])
+    .optional()
+    .describe('Sender type: user / bot / all. Default user.'),
+  chat_type: z
+    .enum(['group', 'p2p'])
+    .optional()
+    .describe('Chat type: group (group chat) / p2p (private chat)'),
   ...timeRangeShape,
   ...paginationShape,
 };
@@ -119,7 +150,9 @@ const searchMessagesShape = {
 // Helper functions
 // ---------------------------------------------------------------------------
 
-function sortRuleToSortType(rule?: 'create_time_asc' | 'create_time_desc'): 'ByCreateTimeAsc' | 'ByCreateTimeDesc' {
+function sortRuleToSortType(
+  rule?: 'create_time_asc' | 'create_time_desc'
+): 'ByCreateTimeAsc' | 'ByCreateTimeDesc' {
   return rule === 'create_time_asc' ? 'ByCreateTimeAsc' : 'ByCreateTimeDesc';
 }
 
@@ -200,16 +233,21 @@ async function resolveP2PChatId(
     code?: number;
     msg?: string;
     data?: { p2p_chats?: Array<{ chat_id: string }> };
-  }>({
-    method: 'POST',
-    url: '/open-apis/im/v1/chat_p2p/batch_query?user_id_type=open_id',
-    data: { chatter_ids: [openId] },
-  }, opts);
+  }>(
+    {
+      method: 'POST',
+      url: '/open-apis/im/v1/chat_p2p/batch_query?user_id_type=open_id',
+      data: { chatter_ids: [openId] },
+    },
+    opts
+  );
 
   const chats = res.data?.p2p_chats;
   if (!chats?.length) {
     logInfo(`batch_query: no p2p chat found for open_id=${openId}`);
-    throw new Error(`No 1-on-1 chat found with open_id=${openId}. You may not have chat history with this user.`);
+    throw new Error(
+      `No 1-on-1 chat found with open_id=${openId}. You may not have chat history with this user.`
+    );
   }
 
   logInfo(`batch_query: resolved chat_id=${chats[0].chat_id}`);
@@ -254,11 +292,22 @@ async function batchResolveUserNames(
 
       const res = await sdk.request<{
         code?: number;
-        data?: { items?: Array<{ open_id?: string; name?: string; display_name?: string; nickname?: string; en_name?: string }> };
-      }>({
-        method: 'GET',
-        url: `/open-apis/contact/v3/users/batch_get?${queryParams.toString()}`,
-      }, opts);
+        data?: {
+          items?: Array<{
+            open_id?: string;
+            name?: string;
+            display_name?: string;
+            nickname?: string;
+            en_name?: string;
+          }>;
+        };
+      }>(
+        {
+          method: 'GET',
+          url: `/open-apis/contact/v3/users/batch_get?${queryParams.toString()}`,
+        },
+        opts
+      );
 
       if (res.code === 0 && res.data?.items) {
         for (const item of res.data.items) {
@@ -270,7 +319,9 @@ async function batchResolveUserNames(
         }
       }
     } catch (err) {
-      log.warn('Failed to batch resolve user names', { error: err instanceof Error ? err.message : String(err) });
+      log.warn('Failed to batch resolve user names', {
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
@@ -349,12 +400,13 @@ function registerGetMessages(registry: ToolRegistry): void {
       }
 
       const time = resolveTimeRange(p, logInfo);
-      logInfo(`list: chat_id=${chatId}, sort=${p.sort_rule ?? 'create_time_desc'}, page_size=${p.page_size ?? 50}`);
+      logInfo(
+        `list: chat_id=${chatId}, sort=${p.sort_rule ?? 'create_time_desc'}, page_size=${p.page_size ?? 50}`
+      );
 
       const Lark = await import('@larksuiteoapi/node-sdk');
       const opts = Lark.withUserAccessToken(accessToken);
 
-       
       const res = await context.larkClient.sdk.im.v1.message.list(
         {
           params: {
@@ -418,12 +470,13 @@ function registerGetThreadMessages(registry: ToolRegistry): void {
       if (!isAuthResult(authResult)) return authResult;
       const { accessToken } = authResult;
 
-      log.info(`list: thread_id=${p.thread_id}, sort=${p.sort_rule ?? 'create_time_desc'}, page_size=${p.page_size ?? 50}`);
+      log.info(
+        `list: thread_id=${p.thread_id}, sort=${p.sort_rule ?? 'create_time_desc'}, page_size=${p.page_size ?? 50}`
+      );
 
       const Lark = await import('@larksuiteoapi/node-sdk');
       const opts = Lark.withUserAccessToken(accessToken);
 
-       
       const res = await context.larkClient.sdk.im.v1.message.list(
         {
           params: {
@@ -519,7 +572,7 @@ function registerSearchMessages(registry: ToolRegistry): void {
       const opts = Lark.withUserAccessToken(accessToken);
 
       // Step 1: Search for message IDs
-       
+
       const searchRes = await (context.larkClient.sdk as any).search.message.create(
         {
           data: searchData,
@@ -549,17 +602,25 @@ function registerSearchMessages(registry: ToolRegistry): void {
         code?: number;
         msg?: string;
         data?: { items?: ApiMessageItem[] };
-      }>({
-        method: 'GET',
-        url: `/open-apis/im/v1/messages/mget?${queryStr}&user_id_type=open_id&card_msg_content_type=raw_card_content`,
-      }, opts);
+      }>(
+        {
+          method: 'GET',
+          url: `/open-apis/im/v1/messages/mget?${queryStr}&user_id_type=open_id&card_msg_content_type=raw_card_content`,
+        },
+        opts
+      );
 
       const items = mgetRes.data?.items ?? [];
       logInfo(`mget: ${items.length} details`);
 
       // Step 3: Batch get chat info
       const chatIds = [...new Set(items.map((i) => i.chat_id).filter(Boolean))] as string[];
-      const chatMap = await fetchChatContexts(context.larkClient.sdk, accessToken, chatIds, logInfo);
+      const chatMap = await fetchChatContexts(
+        context.larkClient.sdk,
+        accessToken,
+        chatIds,
+        logInfo
+      );
 
       // Step 4: Format messages
       const nameResolver = (id: string) => getCachedUserName(id);
@@ -569,7 +630,9 @@ function registerSearchMessages(registry: ToolRegistry): void {
       const messages = await formatMessageList(items, 'default', nameResolver, batchResolver);
 
       // Step 5: Resolve p2p target names
-      const p2pTargetIds = [...new Set([...chatMap.values()].map((c) => c.p2p_target_id).filter(Boolean))] as string[];
+      const p2pTargetIds = [
+        ...new Set([...chatMap.values()].map((c) => c.p2p_target_id).filter(Boolean)),
+      ] as string[];
       if (p2pTargetIds.length > 0) {
         await batchResolveUserNames(context.larkClient.sdk, p2pTargetIds, accessToken);
       }
@@ -619,11 +682,14 @@ async function fetchChatContexts(
           p2p_target_id?: string;
         }>;
       };
-    }>({
-      method: 'POST',
-      url: '/open-apis/im/v1/chats/batch_query?user_id_type=open_id',
-      data: { chat_ids: chatIds },
-    }, opts);
+    }>(
+      {
+        method: 'POST',
+        url: '/open-apis/im/v1/chats/batch_query?user_id_type=open_id',
+        data: { chat_ids: chatIds },
+      },
+      opts
+    );
 
     logInfo(`batch_query: response code=${res.code}, items=${res.data?.items?.length ?? 0}`);
     if (res.code !== 0) {

@@ -101,7 +101,7 @@ export function loadAndValidateConfig(): FeishuConfig {
   const result = validateConfig(config);
 
   if (!result.valid) {
-    throw new Error(`Invalid configuration:\n${result.errors.map(e => `  - ${e}`).join('\n')}`);
+    throw new Error(`Invalid configuration:\n${result.errors.map((e) => `  - ${e}`).join('\n')}`);
   }
 
   return config;

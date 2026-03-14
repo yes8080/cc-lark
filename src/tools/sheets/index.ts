@@ -17,6 +17,12 @@ export function registerSheetsTools(registry: ToolRegistry): void {
   registerSheetTool(registry);
 
   log.info('Sheets tools registered', {
-    tools: ['feishu_sheet_info', 'feishu_sheet_read', 'feishu_sheet_write', 'feishu_sheet_append', 'feishu_sheet_create'].join(', '),
+    tools: [
+      'feishu_sheet_info',
+      'feishu_sheet_read',
+      'feishu_sheet_write',
+      'feishu_sheet_append',
+      'feishu_sheet_create',
+    ].join(', '),
   });
 }

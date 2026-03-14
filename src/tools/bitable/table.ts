@@ -33,18 +33,27 @@ const log = logger('tools:bitable:table');
 
 const fieldSchema = z.object({
   field_name: z.string().describe('Field name'),
-  type: z.number().describe('Field type (1=text, 2=number, 3=single_select, 4=multi_select, 5=date, 7=checkbox, 11=person, 13=phone, 15=url, 17=attachment, 1001=created_time, 1002=modified_time, etc.)'),
+  type: z
+    .number()
+    .describe(
+      'Field type (1=text, 2=number, 3=single_select, 4=multi_select, 5=date, 7=checkbox, 11=person, 13=phone, 15=url, 17=attachment, 1001=created_time, 1002=modified_time, etc.)'
+    ),
   property: z.any().optional().describe('Field property configuration (varies by type)'),
 });
 
 const createActionSchema = {
   action: z.literal('create').describe('Create a new table in the Bitable'),
   app_token: z.string().describe('Bitable app token'),
-  table: z.object({
-    name: z.string().describe('Table name'),
-    default_view_name: z.string().optional().describe('Default view name'),
-    fields: z.array(fieldSchema).optional().describe('Fields to create (recommended to define all fields at creation time)'),
-  }).describe('Table configuration'),
+  table: z
+    .object({
+      name: z.string().describe('Table name'),
+      default_view_name: z.string().optional().describe('Default view name'),
+      fields: z
+        .array(fieldSchema)
+        .optional()
+        .describe('Fields to create (recommended to define all fields at creation time)'),
+    })
+    .describe('Table configuration'),
 };
 
 const listActionSchema = {
@@ -70,9 +79,13 @@ const deleteActionSchema = {
 const batchCreateActionSchema = {
   action: z.literal('batch_create').describe('Create multiple tables at once'),
   app_token: z.string().describe('Bitable app token'),
-  tables: z.array(z.object({
-    name: z.string().describe('Table name'),
-  })).describe('Tables to create'),
+  tables: z
+    .array(
+      z.object({
+        name: z.string().describe('Table name'),
+      })
+    )
+    .describe('Tables to create'),
 };
 
 const batchDeleteActionSchema = {
@@ -191,7 +204,10 @@ export function registerBitableTableTool(registry: ToolRegistry): void {
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function getAccessToken(context: { larkClient: LarkClient | null; config: import('../../core/types.js').FeishuConfig }): Promise<string | ToolResult> {
+async function getAccessToken(context: {
+  larkClient: LarkClient | null;
+  config: import('../../core/types.js').FeishuConfig;
+}): Promise<string | ToolResult> {
   const { larkClient, config } = context;
   if (!larkClient) {
     return jsonError('LarkClient not initialized. Check FEISHU_APP_ID and FEISHU_APP_SECRET.');
@@ -246,7 +262,9 @@ async function handleCreate(
   }
   const accessToken = accessTokenResult;
 
-  log.info(`create: app_token=${p.app_token}, table_name=${p.table.name}, fields_count=${p.table.fields?.length ?? 0}`);
+  log.info(
+    `create: app_token=${p.app_token}, table_name=${p.table.name}, fields_count=${p.table.fields?.length ?? 0}`
+  );
 
   const Lark = await import('@larksuiteoapi/node-sdk');
   const opts = Lark.withUserAccessToken(accessToken);
@@ -258,7 +276,9 @@ async function handleCreate(
     tableData.fields = tableData.fields.map((field: { type: number; property?: unknown }) => {
       if ((field.type === 7 || field.type === 15) && field.property !== undefined) {
         const fieldTypeName = field.type === 15 ? 'URL' : 'Checkbox';
-        log.warn(`create: ${fieldTypeName} field (type=${field.type}) detected with property. Removing property to avoid API error.`);
+        log.warn(
+          `create: ${fieldTypeName} field (type=${field.type}) detected with property. Removing property to avoid API error.`
+        );
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { property: _, ...fieldWithoutProperty } = field;
         return fieldWithoutProperty;

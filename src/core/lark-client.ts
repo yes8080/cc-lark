@@ -82,7 +82,7 @@ Lark.defaultHttpInstance.interceptors.request.use(
     return req;
   },
   undefined,
-  { synchronous: true },
+  { synchronous: true }
 );
 
 // ---------------------------------------------------------------------------

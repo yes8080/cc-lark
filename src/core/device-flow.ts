@@ -46,7 +46,11 @@ export type DeviceFlowResult =
   | { ok: true; token: DeviceFlowTokenData }
   | { ok: false; error: DeviceFlowError; message: string };
 
-export type DeviceFlowError = 'authorization_pending' | 'slow_down' | 'access_denied' | 'expired_token';
+export type DeviceFlowError =
+  | 'authorization_pending'
+  | 'slow_down'
+  | 'access_denied'
+  | 'expired_token';
 
 // ---------------------------------------------------------------------------
 // HTTP helper
@@ -179,7 +183,8 @@ export async function requestDeviceAuthorization(params: {
     deviceCode: data.device_code as string,
     userCode: data.user_code as string,
     verificationUri: data.verification_uri as string,
-    verificationUriComplete: (data.verification_uri_complete as string) ?? (data.verification_uri as string),
+    verificationUriComplete:
+      (data.verification_uri_complete as string) ?? (data.verification_uri as string),
     expiresIn,
     interval,
   };
@@ -298,7 +303,11 @@ export async function pollDeviceToken(params: {
 
     if (error === 'expired_token' || error === 'invalid_grant') {
       log.info(`device code expired/invalid (error=${error})`);
-      return { ok: false, error: 'expired_token', message: 'Authorization code expired, please retry' };
+      return {
+        ok: false,
+        error: 'expired_token',
+        message: 'Authorization code expired, please retry',
+      };
     }
 
     // Unknown error – treat as terminal.

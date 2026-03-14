@@ -36,7 +36,10 @@ const createActionSchema = {
   description: z.string().optional().describe('Space description'),
 };
 
-async function getAccessToken(context: { larkClient: LarkClient | null; config: import('../../core/types.js').FeishuConfig }): Promise<string | ToolResult> {
+async function getAccessToken(context: {
+  larkClient: LarkClient | null;
+  config: import('../../core/types.js').FeishuConfig;
+}): Promise<string | ToolResult> {
   const { larkClient, config } = context;
   if (!larkClient) return jsonError('LarkClient not initialized.');
   const { appId, appSecret, brand } = config;
@@ -79,7 +82,6 @@ export function registerWikiSpaceTool(registry: ToolRegistry): void {
       );
       assertLarkOk(res);
 
-       
       const data = res.data as any;
 
       return json({
@@ -107,10 +109,7 @@ export function registerWikiSpaceTool(registry: ToolRegistry): void {
       const Lark = await import('@larksuiteoapi/node-sdk');
       const opts = Lark.withUserAccessToken(accessToken);
 
-      const res = await larkClient!.sdk.wiki.space.get(
-        { path: { space_id: p.space_id } },
-        opts
-      );
+      const res = await larkClient!.sdk.wiki.space.get({ path: { space_id: p.space_id } }, opts);
       assertLarkOk(res);
 
       return json({ space: res.data?.space });
@@ -134,7 +133,6 @@ export function registerWikiSpaceTool(registry: ToolRegistry): void {
       const Lark = await import('@larksuiteoapi/node-sdk');
       const opts = Lark.withUserAccessToken(accessToken);
 
-       
       const data: any = {};
       if (p.name) data.name = p.name;
       if (p.description) data.description = p.description;
@@ -142,7 +140,6 @@ export function registerWikiSpaceTool(registry: ToolRegistry): void {
       const res = await larkClient!.sdk.wiki.space.create({ data }, opts);
       assertLarkOk(res);
 
-       
       const spaceData = res.data?.space as any;
 
       return json({ space: res.data?.space, space_id: spaceData?.space_id });

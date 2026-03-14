@@ -133,7 +133,10 @@ async function writeTokenStorage(storage: TokenStorage): Promise<void> {
  * Read the stored UAT for a given (appId, userOpenId) pair.
  * Returns `null` when no entry exists or the payload is unparseable.
  */
-export async function getStoredToken(appId: string, userOpenId: string): Promise<StoredUAToken | null> {
+export async function getStoredToken(
+  appId: string,
+  userOpenId: string
+): Promise<StoredUAToken | null> {
   try {
     const storage = await readTokenStorage();
     if (!storage) return null;

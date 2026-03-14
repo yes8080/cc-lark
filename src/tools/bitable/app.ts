@@ -161,7 +161,10 @@ export function registerBitableAppTool(registry: ToolRegistry): void {
 // Handlers
 // ---------------------------------------------------------------------------
 
-async function getAccessToken(context: { larkClient: LarkClient | null; config: import('../../core/types.js').FeishuConfig }): Promise<string | ToolResult> {
+async function getAccessToken(context: {
+  larkClient: LarkClient | null;
+  config: import('../../core/types.js').FeishuConfig;
+}): Promise<string | ToolResult> {
   const { larkClient, config } = context;
   if (!larkClient) {
     return jsonError('LarkClient not initialized. Check FEISHU_APP_ID and FEISHU_APP_SECRET.');
@@ -297,10 +300,11 @@ async function handleList(
   assertLarkOk(res);
 
   // Filter for bitable type files
-   
+
   const data = res.data as Record<string, unknown>;
-   
-  const bitables = (data?.files as Array<Record<string, unknown>>)?.filter((f) => f.type === 'bitable') || [];
+
+  const bitables =
+    (data?.files as Array<Record<string, unknown>>)?.filter((f) => f.type === 'bitable') || [];
 
   log.info(`list: returned ${bitables.length} bitable apps`);
 
@@ -363,7 +367,9 @@ async function handleCopy(
   }
   const accessToken = accessTokenResult;
 
-  log.info(`copy: app_token=${p.app_token}, name=${p.name}, folder_token=${p.folder_token ?? 'my_space'}`);
+  log.info(
+    `copy: app_token=${p.app_token}, name=${p.name}, folder_token=${p.folder_token ?? 'my_space'}`
+  );
 
   const Lark = await import('@larksuiteoapi/node-sdk');
   const opts = Lark.withUserAccessToken(accessToken);

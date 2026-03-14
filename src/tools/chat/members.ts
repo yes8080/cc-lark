@@ -18,12 +18,18 @@ const log = logger('tools:chat:members');
 // Schemas
 const membersActionSchema = {
   chat_id: z.string().describe('Chat ID (format: oc_xxx)'),
-  member_id_type: z.enum(['open_id', 'union_id', 'user_id']).optional().describe('Member ID type (default: open_id)'),
+  member_id_type: z
+    .enum(['open_id', 'union_id', 'user_id'])
+    .optional()
+    .describe('Member ID type (default: open_id)'),
   page_size: z.number().min(1).optional().describe('Page size (default 20)'),
   page_token: z.string().optional().describe('Pagination token'),
 };
 
-async function getAccessToken(context: { larkClient: LarkClient | null; config: import('../../core/types.js').FeishuConfig }): Promise<string | ToolResult> {
+async function getAccessToken(context: {
+  larkClient: LarkClient | null;
+  config: import('../../core/types.js').FeishuConfig;
+}): Promise<string | ToolResult> {
   const { larkClient, config } = context;
   if (!larkClient) return jsonError('LarkClient not initialized.');
   const { appId, appSecret, brand } = config;

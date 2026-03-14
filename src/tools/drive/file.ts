@@ -29,14 +29,29 @@ const listActionSchema = {
   direction: z.enum(['ASC', 'DESC']).optional().describe('Sort direction'),
 };
 
-const docTypeEnum = z.enum(['doc', 'sheet', 'file', 'bitable', 'docx', 'folder', 'mindnote', 'slides']);
+const docTypeEnum = z.enum([
+  'doc',
+  'sheet',
+  'file',
+  'bitable',
+  'docx',
+  'folder',
+  'mindnote',
+  'slides',
+]);
 
 const getMetaActionSchema = {
   action: z.literal('get_meta').describe('Get file metadata'),
-  request_docs: z.array(z.object({
-    doc_token: z.string().describe('Document token'),
-    doc_type: docTypeEnum.describe('Document type'),
-  })).min(1).max(50).describe('Documents to query'),
+  request_docs: z
+    .array(
+      z.object({
+        doc_token: z.string().describe('Document token'),
+        doc_type: docTypeEnum.describe('Document type'),
+      })
+    )
+    .min(1)
+    .max(50)
+    .describe('Documents to query'),
 };
 
 const copyActionSchema = {
@@ -60,7 +75,10 @@ const deleteActionSchema = {
   type: docTypeEnum.describe('Document type'),
 };
 
-async function getAccessToken(context: { larkClient: LarkClient | null; config: import('../../core/types.js').FeishuConfig }): Promise<string | ToolResult> {
+async function getAccessToken(context: {
+  larkClient: LarkClient | null;
+  config: import('../../core/types.js').FeishuConfig;
+}): Promise<string | ToolResult> {
   const { larkClient, config } = context;
   if (!larkClient) return jsonError('LarkClient not initialized.');
   const { appId, appSecret, brand } = config;
@@ -68,13 +86,15 @@ async function getAccessToken(context: { larkClient: LarkClient | null; config: 
 
   const { listStoredTokens } = await import('../../core/token-store.js');
   const tokens = await listStoredTokens(appId);
-  if (tokens.length === 0) return jsonError('No user authorization found. Use feishu_oauth tool first.');
+  if (tokens.length === 0)
+    return jsonError('No user authorization found. Use feishu_oauth tool first.');
   const userOpenId = tokens[0].userOpenId;
 
   try {
     return await getValidAccessToken({ userOpenId, appId, appSecret, domain: brand ?? 'feishu' });
   } catch (err) {
-    if (err instanceof NeedAuthorizationError) return jsonError('User authorization expired. Re-authorize with feishu_oauth.');
+    if (err instanceof NeedAuthorizationError)
+      return jsonError('User authorization expired. Re-authorize with feishu_oauth.');
     throw err;
   }
 }
@@ -209,7 +229,10 @@ export function registerDriveFileTool(registry: ToolRegistry): void {
       const opts = Lark.withUserAccessToken(accessToken);
 
       const res = await larkClient!.sdk.drive.file.move(
-        { path: { file_token: p.file_token }, data: { type: p.type as 'file' | 'folder', folder_token: p.folder_token } },
+        {
+          path: { file_token: p.file_token },
+          data: { type: p.type as 'file' | 'folder', folder_token: p.folder_token },
+        },
         opts
       );
       assertLarkOk(res);
@@ -250,7 +273,6 @@ export function registerDriveFileTool(registry: ToolRegistry): void {
       );
       assertLarkOk(res);
 
-       
       const data = res.data as Record<string, unknown>;
 
       return json({

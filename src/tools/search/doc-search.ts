@@ -71,8 +71,8 @@ function parseTimeToTimestamp(input: string): number | undefined {
         parseInt(day),
         parseInt(hour) - 8,
         parseInt(minute),
-        parseInt(second ?? '0'),
-      ),
+        parseInt(second ?? '0')
+      )
     );
 
     return Math.floor(utcDate.getTime() / 1000);
@@ -82,20 +82,34 @@ function parseTimeToTimestamp(input: string): number | undefined {
 }
 
 // Schemas
-const docTypeEnum = z.enum(['DOC', 'SHEET', 'BITABLE', 'MINDNOTE', 'FILE', 'WIKI', 'DOCX', 'FOLDER', 'CATALOG', 'SLIDES', 'SHORTCUT']);
+const docTypeEnum = z.enum([
+  'DOC',
+  'SHEET',
+  'BITABLE',
+  'MINDNOTE',
+  'FILE',
+  'WIKI',
+  'DOCX',
+  'FOLDER',
+  'CATALOG',
+  'SLIDES',
+  'SHORTCUT',
+]);
 
 const timeRangeSchema = z.object({
   start: z.string().optional().describe('Start time (ISO 8601 with timezone)'),
   end: z.string().optional().describe('End time (ISO 8601 with timezone)'),
 });
 
-const filterSchema = z.object({
-  creator_ids: z.array(z.string()).max(20).optional().describe('Creator OpenIDs (max 20)'),
-  doc_types: z.array(docTypeEnum).max(10).optional().describe('Document types'),
-  only_title: z.boolean().optional().describe('Search title only (default: false)'),
-  open_time: timeRangeSchema.optional().describe('Open time range'),
-  create_time: timeRangeSchema.optional().describe('Create time range'),
-}).optional();
+const filterSchema = z
+  .object({
+    creator_ids: z.array(z.string()).max(20).optional().describe('Creator OpenIDs (max 20)'),
+    doc_types: z.array(docTypeEnum).max(10).optional().describe('Document types'),
+    only_title: z.boolean().optional().describe('Search title only (default: false)'),
+    open_time: timeRangeSchema.optional().describe('Open time range'),
+    create_time: timeRangeSchema.optional().describe('Create time range'),
+  })
+  .optional();
 
 const searchActionSchema = {
   action: z.literal('search').describe('Search documents and wikis'),
@@ -105,7 +119,6 @@ const searchActionSchema = {
   page_token: z.string().optional().describe('Pagination token'),
 };
 
- 
 function normalizeSearchResultTimeFields<T>(value: T): T {
   if (Array.isArray(value)) {
     return value.map((item) => normalizeSearchResultTimeFields(item)) as T;
@@ -132,7 +145,10 @@ function normalizeSearchResultTimeFields<T>(value: T): T {
   return normalized as T;
 }
 
-async function getAccessToken(context: { larkClient: LarkClient | null; config: import('../../core/types.js').FeishuConfig }): Promise<string | ToolResult> {
+async function getAccessToken(context: {
+  larkClient: LarkClient | null;
+  config: import('../../core/types.js').FeishuConfig;
+}): Promise<string | ToolResult> {
   const { larkClient, config } = context;
   if (!larkClient) return jsonError('LarkClient not initialized.');
   const { appId, appSecret, brand } = config;
@@ -165,13 +181,15 @@ export function registerSearchDocWikiTool(registry: ToolRegistry): void {
       const accessToken = tokenResult;
 
       const query = p.query ?? '';
-      log.info(`search: query="${query}", has_filter=${!!p.filter}, page_size=${p.page_size ?? 15}`);
+      log.info(
+        `search: query="${query}", has_filter=${!!p.filter}, page_size=${p.page_size ?? 15}`
+      );
 
       const Lark = await import('@larksuiteoapi/node-sdk');
       const opts = Lark.withUserAccessToken(accessToken);
 
       // Build request body
-       
+
       const requestData: any = {
         query,
         page_size: p.page_size,
@@ -183,7 +201,6 @@ export function registerSearchDocWikiTool(registry: ToolRegistry): void {
 
         // Convert time ranges
         if (filter.open_time) {
-           
           const converted: any = {};
           if (filter.open_time.start) {
             const ts = parseTimeToTimestamp(filter.open_time.start);
@@ -196,7 +213,6 @@ export function registerSearchDocWikiTool(registry: ToolRegistry): void {
           filter.open_time = converted;
         }
         if (filter.create_time) {
-           
           const converted: any = {};
           if (filter.create_time.start) {
             const ts = parseTimeToTimestamp(filter.create_time.start);
@@ -217,16 +233,19 @@ export function registerSearchDocWikiTool(registry: ToolRegistry): void {
       }
 
       // Use direct request since SDK doesn't have search API
-       
-      const res = await (larkClient!.sdk as any).request({
-        method: 'POST',
-        url: '/open-apis/search/v2/doc_wiki/search',
-        data: requestData,
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json; charset=utf-8',
+
+      const res = await (larkClient!.sdk as any).request(
+        {
+          method: 'POST',
+          url: '/open-apis/search/v2/doc_wiki/search',
+          data: requestData,
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json; charset=utf-8',
+          },
         },
-      }, opts);
+        opts
+      );
 
       // Check for API error - response might have code directly or wrapped
       if ((res as any).code !== undefined && (res as any).code !== 0) {

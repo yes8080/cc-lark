@@ -15,11 +15,7 @@ import {
   pollDeviceToken,
   type DeviceAuthResponse,
 } from '../core/device-flow.js';
-import {
-  getStoredToken,
-  listStoredTokens,
-  tokenStatus,
-} from '../core/token-store.js';
+import { getStoredToken, listStoredTokens, tokenStatus } from '../core/token-store.js';
 import { getUATStatus, saveTokenFromDeviceFlow, revokeUAT } from '../core/uat-client.js';
 import { logger } from '../utils/logger.js';
 
@@ -30,15 +26,23 @@ const log = logger('tools:oauth');
 // ---------------------------------------------------------------------------
 
 const OAuthInputSchema = {
-  action: z.enum(['authorize', 'revoke', 'status']).describe(
-    'The OAuth action to perform: "authorize" starts device flow, "revoke" removes stored token, "status" checks authorization status'
-  ),
-  scope: z.string().optional().describe(
-    'Space-separated list of OAuth scopes to request (e.g., "contact:user.base:readonly mail:mail:readonly"). Used with "authorize" action.'
-  ),
-  user_open_id: z.string().optional().describe(
-    'The user open_id for "revoke" or "status" action. For "authorize", this will be discovered automatically.'
-  ),
+  action: z
+    .enum(['authorize', 'revoke', 'status'])
+    .describe(
+      'The OAuth action to perform: "authorize" starts device flow, "revoke" removes stored token, "status" checks authorization status'
+    ),
+  scope: z
+    .string()
+    .optional()
+    .describe(
+      'Space-separated list of OAuth scopes to request (e.g., "contact:user.base:readonly mail:mail:readonly"). Used with "authorize" action.'
+    ),
+  user_open_id: z
+    .string()
+    .optional()
+    .describe(
+      'The user open_id for "revoke" or "status" action. For "authorize", this will be discovered automatically.'
+    ),
 };
 
 // ---------------------------------------------------------------------------
@@ -156,30 +160,40 @@ async function handleAuthorize(
     let userOpenId: string;
     try {
       // Use the Lark API to get user info
-      const userinfoUrl = brand === 'lark'
-        ? 'https://open.larksuite.com/open-apis/authen/v1/user_info'
-        : 'https://open.feishu.cn/open-apis/authen/v1/user_info';
+      const userinfoUrl =
+        brand === 'lark'
+          ? 'https://open.larksuite.com/open-apis/authen/v1/user_info'
+          : 'https://open.feishu.cn/open-apis/authen/v1/user_info';
 
       const userinfoResp = await fetch(userinfoUrl, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${token.accessToken}`,
+          Authorization: `Bearer ${token.accessToken}`,
         },
       });
 
-      const userinfoData = await userinfoResp.json() as { code?: number; data?: { user?: { open_id?: string } }; msg?: string };
+      const userinfoData = (await userinfoResp.json()) as {
+        code?: number;
+        data?: { user?: { open_id?: string } };
+        msg?: string;
+      };
 
       if (userinfoData.code !== 0 || !userinfoData.data?.user?.open_id) {
         // Fallback: try to get user info via tenant access token
         // Use a placeholder for now - user can find their open_id through other means
-        log.warn('Could not fetch user info from API', { code: userinfoData.code, msg: userinfoData.msg });
+        log.warn('Could not fetch user info from API', {
+          code: userinfoData.code,
+          msg: userinfoData.msg,
+        });
         userOpenId = 'unknown';
       } else {
         userOpenId = userinfoData.data.user.open_id;
         log.info('Got user open_id from userinfo API', { userOpenId });
       }
     } catch (err) {
-      log.warn('Failed to fetch user info', { error: err instanceof Error ? err.message : String(err) });
+      log.warn('Failed to fetch user info', {
+        error: err instanceof Error ? err.message : String(err),
+      });
       userOpenId = 'unknown';
     }
 
@@ -232,10 +246,7 @@ async function handleAuthorize(
 /**
  * Handle 'revoke' action - remove stored token.
  */
-async function handleRevoke(
-  userOpenId: string | undefined,
-  appId: string
-): Promise<OAuthResult> {
+async function handleRevoke(userOpenId: string | undefined, appId: string): Promise<OAuthResult> {
   if (!userOpenId) {
     // List all stored tokens for this app
     const tokens = await listStoredTokens(appId);
@@ -324,7 +335,8 @@ async function handleStatus(
     const tokenList = tokens
       .map((t) => {
         const status = tokenStatus(t);
-        const statusEmoji = status === 'valid' ? 'valid' : status === 'needs_refresh' ? 'expiring' : 'expired';
+        const statusEmoji =
+          status === 'valid' ? 'valid' : status === 'needs_refresh' ? 'expiring' : 'expired';
         const expiresDate = new Date(t.expiresAt).toISOString();
         return `- ${t.userOpenId}\n  Status: ${statusEmoji}\n  Scope: ${t.scope || 'unknown'}\n  Expires: ${expiresDate}`;
       })
@@ -362,7 +374,9 @@ async function handleStatus(
   }
 
   const expiresDate = status.expiresAt ? new Date(status.expiresAt).toISOString() : 'unknown';
-  const refreshExpiresDate = status.refreshExpiresAt ? new Date(status.refreshExpiresAt).toISOString() : 'unknown';
+  const refreshExpiresDate = status.refreshExpiresAt
+    ? new Date(status.refreshExpiresAt).toISOString()
+    : 'unknown';
   const grantedDate = status.grantedAt ? new Date(status.grantedAt).toISOString() : 'unknown';
 
   return {

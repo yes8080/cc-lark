@@ -55,7 +55,10 @@ const deleteActionSchema = {
   tasklist_guid: z.string().describe('Tasklist GUID'),
 };
 
-async function getAccessToken(context: { larkClient: LarkClient | null; config: import('../../core/types.js').FeishuConfig }): Promise<string | ToolResult> {
+async function getAccessToken(context: {
+  larkClient: LarkClient | null;
+  config: import('../../core/types.js').FeishuConfig;
+}): Promise<string | ToolResult> {
   const { larkClient, config } = context;
   if (!larkClient) return jsonError('LarkClient not initialized.');
   const { appId, appSecret, brand } = config;
@@ -63,13 +66,15 @@ async function getAccessToken(context: { larkClient: LarkClient | null; config: 
 
   const { listStoredTokens } = await import('../../core/token-store.js');
   const tokens = await listStoredTokens(appId);
-  if (tokens.length === 0) return jsonError('No user authorization found. Use feishu_oauth tool first.');
+  if (tokens.length === 0)
+    return jsonError('No user authorization found. Use feishu_oauth tool first.');
   const userOpenId = tokens[0].userOpenId;
 
   try {
     return await getValidAccessToken({ userOpenId, appId, appSecret, domain: brand ?? 'feishu' });
   } catch (err) {
-    if (err instanceof NeedAuthorizationError) return jsonError('User authorization expired. Re-authorize with feishu_oauth.');
+    if (err instanceof NeedAuthorizationError)
+      return jsonError('User authorization expired. Re-authorize with feishu_oauth.');
     throw err;
   }
 }
@@ -181,7 +186,15 @@ export function registerTasklistTool(registry: ToolRegistry): void {
       const opts = Lark.withUserAccessToken(accessToken);
 
       const res = await larkClient!.sdk.task.v2.tasklist.tasks(
-        { path: { tasklist_guid: p.tasklist_guid }, params: { page_size: p.page_size, page_token: p.page_token, completed: p.completed, user_id_type: 'open_id' } },
+        {
+          path: { tasklist_guid: p.tasklist_guid },
+          params: {
+            page_size: p.page_size,
+            page_token: p.page_token,
+            completed: p.completed,
+            user_id_type: 'open_id',
+          },
+        },
         opts
       );
       assertLarkOk(res);
@@ -217,12 +230,19 @@ export function registerTasklistTool(registry: ToolRegistry): void {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const tasklistData: any = {};
       const updateFields: string[] = [];
-      if (p.name !== undefined) { tasklistData.name = p.name; updateFields.push('name'); }
+      if (p.name !== undefined) {
+        tasklistData.name = p.name;
+        updateFields.push('name');
+      }
 
       if (updateFields.length === 0) return jsonError('No fields to update');
 
       const res = await larkClient!.sdk.task.v2.tasklist.patch(
-        { path: { tasklist_guid: p.tasklist_guid }, data: { tasklist: tasklistData, update_fields: updateFields }, params: { user_id_type: 'open_id' } },
+        {
+          path: { tasklist_guid: p.tasklist_guid },
+          data: { tasklist: tasklistData, update_fields: updateFields },
+          params: { user_id_type: 'open_id' },
+        },
         opts
       );
       assertLarkOk(res);
