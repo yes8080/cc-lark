@@ -1,12 +1,20 @@
 {
   "name": "cc-lark",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Feishu/Lark MCP Server for Claude Code",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
     "cc-lark": "dist/index.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yes8080/cc-lark.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yes8080/cc-lark/issues"
+  },
+  "homepage": "https://github.com/yes8080/cc-lark#readme",
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
