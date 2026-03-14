@@ -19,7 +19,7 @@ import { z } from 'zod';
 import type { ToolRegistry } from '../index.js';
 import { getToolAccessToken, isToolResult, withUserAccessToken } from '../common/auth-helper.js';
 import { assertLarkOk } from '../../core/api-error.js';
-import { json, jsonError, type ToolResult } from './helpers.js';
+import { json, type ToolResult } from './helpers.js';
 import { logger } from '../../utils/logger.js';
 
 const log = logger('tools:im:message');

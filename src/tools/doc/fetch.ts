@@ -13,7 +13,7 @@
 import { z } from 'zod';
 import type { ToolRegistry } from '../index.js';
 import { getToolAccessToken, isToolResult } from '../common/auth-helper.js';
-import { callMcpTool, jsonError, processMcpResult, type ToolResult } from './shared.js';
+import { callMcpTool, processMcpResult, type ToolResult } from './shared.js';
 import { logger } from '../../utils/logger.js';
 
 const log = logger('tools:doc:fetch');
