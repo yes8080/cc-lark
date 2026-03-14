@@ -14,49 +14,19 @@ import type { ToolRegistry } from '../index.js';
 import { getToolAccessToken, isToolResult, withUserAccessToken } from '../common/auth-helper.js';
 import { assertLarkOk } from '../../core/api-error.js';
 import { json, jsonError } from '../common/helpers.js';
+import { parseTimeToTimestamp } from '../im/time-utils.js';
 import { logger } from '../../utils/logger.js';
 
 const log = logger('tools:task:task');
 
 /**
  * Parse time string to Unix timestamp (milliseconds).
+ * Wraps the shared parseTimeToTimestamp (seconds) and converts to milliseconds.
  */
 function parseTimeToTimestampMs(input: string): string | null {
-  try {
-    const trimmed = input.trim();
-    const hasTimezone = /[Zz]$|[+-]\d{2}:\d{2}$/.test(trimmed);
-
-    if (hasTimezone) {
-      const date = new Date(trimmed);
-      if (isNaN(date.getTime())) return null;
-      return date.getTime().toString();
-    }
-
-    const normalized = trimmed.replace('T', ' ');
-    const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?$/);
-
-    if (!match) {
-      const date = new Date(trimmed);
-      if (isNaN(date.getTime())) return null;
-      return date.getTime().toString();
-    }
-
-    const [, year, month, day, hour, minute, second] = match;
-    const utcDate = new Date(
-      Date.UTC(
-        parseInt(year),
-        parseInt(month) - 1,
-        parseInt(day),
-        parseInt(hour) - 8,
-        parseInt(minute),
-        parseInt(second ?? '0')
-      )
-    );
-
-    return utcDate.getTime().toString();
-  } catch {
-    return null;
-  }
+  const secondsStr = parseTimeToTimestamp(input);
+  if (secondsStr === null) return null;
+  return (parseInt(secondsStr, 10) * 1000).toString();
 }
 
 // Schemas

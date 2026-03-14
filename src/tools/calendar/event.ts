@@ -22,82 +22,13 @@ import { LarkClient } from '../../core/lark-client.js';
 import { getToolAccessToken, isToolResult, withUserAccessToken } from '../common/auth-helper.js';
 import { assertLarkOk } from '../../core/api-error.js';
 import { json, jsonError, type ToolResult } from '../common/helpers.js';
+import {
+  parseTimeToTimestamp,
+  unixTimestampToISO8601,
+} from '../im/time-utils.js';
 import { logger } from '../../utils/logger.js';
 
 const log = logger('tools:calendar:event');
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Parse time string to Unix timestamp (seconds).
- * Supports ISO 8601 with timezone or Beijing time (UTC+8) without timezone.
- */
-function parseTimeToTimestamp(input: string): string | null {
-  try {
-    const trimmed = input.trim();
-    const hasTimezone = /[Zz]$|[+-]\d{2}:\d{2}$/.test(trimmed);
-
-    if (hasTimezone) {
-      const date = new Date(trimmed);
-      if (isNaN(date.getTime())) return null;
-      return Math.floor(date.getTime() / 1000).toString();
-    }
-
-    // No timezone - treat as Beijing time (UTC+8)
-    const normalized = trimmed.replace('T', ' ');
-    const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?$/);
-
-    if (!match) {
-      const date = new Date(trimmed);
-      if (isNaN(date.getTime())) return null;
-      return Math.floor(date.getTime() / 1000).toString();
-    }
-
-    const [, year, month, day, hour, minute, second] = match;
-    const utcDate = new Date(
-      Date.UTC(
-        parseInt(year),
-        parseInt(month) - 1,
-        parseInt(day),
-        parseInt(hour) - 8, // Beijing time - 8 hours = UTC
-        parseInt(minute),
-        parseInt(second ?? '0')
-      )
-    );
-
-    return Math.floor(utcDate.getTime() / 1000).toString();
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Convert Unix timestamp to ISO 8601 string in Shanghai timezone.
- */
-function unixTimestampToISO8601(raw: string | number | undefined): string | null {
-  if (raw === undefined || raw === null) return null;
-
-  const text = typeof raw === 'number' ? String(raw) : String(raw).trim();
-  if (!/^-?\d+$/.test(text)) return null;
-
-  const num = Number(text);
-  if (!Number.isFinite(num)) return null;
-
-  const utcMs = Math.abs(num) >= 1e12 ? num : num * 1000;
-  const beijingDate = new Date(utcMs + 8 * 60 * 60 * 1000);
-  if (Number.isNaN(beijingDate.getTime())) return null;
-
-  const year = beijingDate.getUTCFullYear();
-  const month = String(beijingDate.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(beijingDate.getUTCDate()).padStart(2, '0');
-  const hour = String(beijingDate.getUTCHours()).padStart(2, '0');
-  const minute = String(beijingDate.getUTCMinutes()).padStart(2, '0');
-  const second = String(beijingDate.getUTCSeconds()).padStart(2, '0');
-
-  return `${year}-${month}-${day}T${hour}:${minute}:${second}+08:00`;
-}
 
 // ---------------------------------------------------------------------------
 // Input schemas

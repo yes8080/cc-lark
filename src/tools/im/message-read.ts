@@ -15,8 +15,8 @@
 
 import { z } from 'zod';
 import type { ToolRegistry } from '../index.js';
-import { LarkClient } from '../../core/lark-client.js';
-import { getValidAccessToken, NeedAuthorizationError } from '../../core/uat-client.js';
+import type { LarkClient } from '../../core/lark-client.js';
+import { getToolAccessToken, isToolResult, withUserAccessToken } from '../common/auth-helper.js';
 import { assertLarkOk } from '../../core/api-error.js';
 import {
   json,
@@ -32,6 +32,7 @@ import {
   type ApiMessageItem,
 } from './format-messages.js';
 import { logger } from '../../utils/logger.js';
+import { listStoredTokens } from '../../core/token-store.js';
 
 const log = logger('tools:im:message-read');
 
@@ -177,40 +178,16 @@ type AuthResult = { accessToken: string; userOpenId: string };
  * Get authorization and access token for handlers.
  */
 async function getAuth(
-  config: import('../../core/types.js').FeishuConfig
+  context: { larkClient: import('../../core/lark-client.js').LarkClient | null; config: import('../../core/types.js').FeishuConfig }
 ): Promise<AuthResult | ToolResult> {
-  const { appId, appSecret, brand } = config;
-  if (!appId || !appSecret) {
-    return jsonError('Missing FEISHU_APP_ID or FEISHU_APP_SECRET.');
-  }
+  const tokenResult = await getToolAccessToken(context);
+  if (isToolResult(tokenResult)) return tokenResult;
 
-  const { listStoredTokens } = await import('../../core/token-store.js');
-  const tokens = await listStoredTokens(appId);
-  if (tokens.length === 0) {
-    return jsonError(
-      'No user authorization found. Please use the feishu_oauth tool with action="authorize" to authorize a user first.'
-    );
-  }
-
+  const { appId } = context.config;
+  const tokens = await listStoredTokens(appId!);
   const userOpenId = tokens[0].userOpenId;
 
-  try {
-    const accessToken = await getValidAccessToken({
-      userOpenId,
-      appId,
-      appSecret,
-      domain: brand ?? 'feishu',
-    });
-    return { accessToken, userOpenId };
-  } catch (err) {
-    if (err instanceof NeedAuthorizationError) {
-      return jsonError(
-        `User authorization required or expired. Please use feishu_oauth tool with action="authorize" to re-authorize.`,
-        { userOpenId }
-      );
-    }
-    throw err;
-  }
+  return { accessToken: tokenResult, userOpenId };
 }
 
 function isAuthResult(result: AuthResult | ToolResult): result is AuthResult {
@@ -226,8 +203,7 @@ async function resolveP2PChatId(
   accessToken: string,
   logInfo: (msg: string) => void
 ): Promise<string> {
-  const Lark = await import('@larksuiteoapi/node-sdk');
-  const opts = Lark.withUserAccessToken(accessToken);
+  const opts = await withUserAccessToken(accessToken);
 
   const res = await sdk.request<{
     code?: number;
@@ -280,8 +256,7 @@ async function batchResolveUserNames(
 
   // Batch query (50 at a time)
   const BATCH_SIZE = 50;
-  const Lark = await import('@larksuiteoapi/node-sdk');
-  const opts = Lark.withUserAccessToken(accessToken);
+  const opts = await withUserAccessToken(accessToken);
 
   for (let i = 0; i < missing.length; i += BATCH_SIZE) {
     const chunk = missing.slice(i, i + BATCH_SIZE);
@@ -387,7 +362,7 @@ function registerGetMessages(registry: ToolRegistry): void {
         return jsonError('Cannot use both relative_time and start_time/end_time');
       }
 
-      const authResult = await getAuth(context.config);
+      const authResult = await getAuth(context);
       if (!isAuthResult(authResult)) return authResult;
       const { accessToken } = authResult;
 
@@ -404,8 +379,7 @@ function registerGetMessages(registry: ToolRegistry): void {
         `list: chat_id=${chatId}, sort=${p.sort_rule ?? 'create_time_desc'}, page_size=${p.page_size ?? 50}`
       );
 
-      const Lark = await import('@larksuiteoapi/node-sdk');
-      const opts = Lark.withUserAccessToken(accessToken);
+      const opts = await withUserAccessToken(accessToken);
 
       const res = await context.larkClient.sdk.im.v1.message.list(
         {
@@ -466,7 +440,7 @@ function registerGetThreadMessages(registry: ToolRegistry): void {
         return jsonError('LarkClient not initialized. Check FEISHU_APP_ID and FEISHU_APP_SECRET.');
       }
 
-      const authResult = await getAuth(context.config);
+      const authResult = await getAuth(context);
       if (!isAuthResult(authResult)) return authResult;
       const { accessToken } = authResult;
 
@@ -474,8 +448,7 @@ function registerGetThreadMessages(registry: ToolRegistry): void {
         `list: thread_id=${p.thread_id}, sort=${p.sort_rule ?? 'create_time_desc'}, page_size=${p.page_size ?? 50}`
       );
 
-      const Lark = await import('@larksuiteoapi/node-sdk');
-      const opts = Lark.withUserAccessToken(accessToken);
+      const opts = await withUserAccessToken(accessToken);
 
       const res = await context.larkClient.sdk.im.v1.message.list(
         {
@@ -546,7 +519,7 @@ function registerSearchMessages(registry: ToolRegistry): void {
         return jsonError('Cannot use both relative_time and start_time/end_time');
       }
 
-      const authResult = await getAuth(context.config);
+      const authResult = await getAuth(context);
       if (!isAuthResult(authResult)) return authResult;
       const { accessToken } = authResult;
 
@@ -568,8 +541,7 @@ function registerSearchMessages(registry: ToolRegistry): void {
 
       logInfo(`search: query="${p.query ?? ''}", page_size=${p.page_size ?? 50}`);
 
-      const Lark = await import('@larksuiteoapi/node-sdk');
-      const opts = Lark.withUserAccessToken(accessToken);
+      const opts = await withUserAccessToken(accessToken);
 
       // Step 1: Search for message IDs
 
@@ -668,8 +640,7 @@ async function fetchChatContexts(
 
   try {
     logInfo(`batch_query: requesting ${chatIds.length} chat_ids`);
-    const Lark = await import('@larksuiteoapi/node-sdk');
-    const opts = Lark.withUserAccessToken(accessToken);
+    const opts = await withUserAccessToken(accessToken);
 
     const res = await sdk.request<{
       code?: number;

@@ -17,8 +17,7 @@
 
 import { z } from 'zod';
 import type { ToolRegistry } from '../index.js';
-import { LarkClient } from '../../core/lark-client.js';
-import { getValidAccessToken, NeedAuthorizationError } from '../../core/uat-client.js';
+import { getToolAccessToken, isToolResult, withUserAccessToken } from '../common/auth-helper.js';
 import { assertLarkOk } from '../../core/api-error.js';
 import { json, jsonError, type ToolResult } from './helpers.js';
 import { logger } from '../../utils/logger.js';
@@ -156,158 +155,88 @@ export function registerImMessageTool(registry: ToolRegistry): void {
 
 async function handleSend(
   args: unknown,
-  context: { larkClient: LarkClient | null; config: import('../../core/types.js').FeishuConfig }
+  context: { larkClient: import('../../core/lark-client.js').LarkClient | null; config: import('../../core/types.js').FeishuConfig }
 ): Promise<ToolResult> {
   const p = args as z.infer<ReturnType<typeof z.object<typeof sendMessageSchema>>>;
-  const { larkClient, config } = context;
+  const { larkClient } = context;
 
-  if (!larkClient) {
-    return jsonError('LarkClient not initialized. Check FEISHU_APP_ID and FEISHU_APP_SECRET.');
-  }
+  const tokenResult = await getToolAccessToken(context);
+  if (isToolResult(tokenResult)) return tokenResult;
+  const accessToken = tokenResult;
 
-  const { appId, appSecret, brand } = config;
-  if (!appId || !appSecret) {
-    return jsonError('Missing FEISHU_APP_ID or FEISHU_APP_SECRET.');
-  }
+  log.info('Sending message', {
+    receive_id_type: p.receive_id_type,
+    receive_id: p.receive_id,
+    msg_type: p.msg_type,
+  });
 
-  // Get the first stored user token
-  const { listStoredTokens } = await import('../../core/token-store.js');
-  const tokens = await listStoredTokens(appId);
-  if (tokens.length === 0) {
-    return jsonError(
-      'No user authorization found. Please use the feishu_oauth tool with action="authorize" to authorize a user first.'
-    );
-  }
+  const opts = await withUserAccessToken(accessToken);
 
-  const userOpenId = tokens[0].userOpenId;
-
-  try {
-    const accessToken = await getValidAccessToken({
-      userOpenId,
-      appId,
-      appSecret,
-      domain: brand ?? 'feishu',
-    });
-
-    log.info('Sending message', {
-      receive_id_type: p.receive_id_type,
-      receive_id: p.receive_id,
-      msg_type: p.msg_type,
-    });
-
-    const Lark = await import('@larksuiteoapi/node-sdk');
-    const opts = Lark.withUserAccessToken(accessToken);
-
-    const res = await larkClient.sdk.im.v1.message.create(
-      {
-        params: { receive_id_type: p.receive_id_type },
-        data: {
-          receive_id: p.receive_id,
-          msg_type: p.msg_type,
-          content: p.content,
-          uuid: p.uuid,
-        },
+  const res = await larkClient!.sdk.im.v1.message.create(
+    {
+      params: { receive_id_type: p.receive_id_type },
+      data: {
+        receive_id: p.receive_id,
+        msg_type: p.msg_type,
+        content: p.content,
+        uuid: p.uuid,
       },
-      opts
-    );
+    },
+    opts
+  );
 
-    assertLarkOk(res);
+  assertLarkOk(res);
 
-    const data = res.data as Record<string, unknown> | undefined;
-    log.info('Message sent', { message_id: data?.message_id });
+  const data = res.data as Record<string, unknown> | undefined;
+  log.info('Message sent', { message_id: data?.message_id });
 
-    return json({
-      message_id: data?.message_id,
-      chat_id: data?.chat_id,
-      create_time: data?.create_time,
-    });
-  } catch (err) {
-    if (err instanceof NeedAuthorizationError) {
-      return jsonError(
-        `User authorization required or expired. Please use feishu_oauth tool with action="authorize" to re-authorize.`,
-        { userOpenId }
-      );
-    }
-    log.error('Send message failed', { error: err instanceof Error ? err.message : String(err) });
-    return jsonError(err instanceof Error ? err.message : String(err));
-  }
+  return json({
+    message_id: data?.message_id,
+    chat_id: data?.chat_id,
+    create_time: data?.create_time,
+  });
 }
 
 async function handleReply(
   args: unknown,
-  context: { larkClient: LarkClient | null; config: import('../../core/types.js').FeishuConfig }
+  context: { larkClient: import('../../core/lark-client.js').LarkClient | null; config: import('../../core/types.js').FeishuConfig }
 ): Promise<ToolResult> {
   const p = args as z.infer<ReturnType<typeof z.object<typeof replyMessageSchema>>>;
-  const { larkClient, config } = context;
+  const { larkClient } = context;
 
-  if (!larkClient) {
-    return jsonError('LarkClient not initialized. Check FEISHU_APP_ID or FEISHU_APP_SECRET.');
-  }
+  const tokenResult = await getToolAccessToken(context);
+  if (isToolResult(tokenResult)) return tokenResult;
+  const accessToken = tokenResult;
 
-  const { appId, appSecret, brand } = config;
-  if (!appId || !appSecret) {
-    return jsonError('Missing FEISHU_APP_ID or FEISHU_APP_SECRET.');
-  }
+  log.info('Replying to message', {
+    message_id: p.message_id,
+    msg_type: p.msg_type,
+    reply_in_thread: p.reply_in_thread ?? false,
+  });
 
-  // Get the first stored user token
-  const { listStoredTokens } = await import('../../core/token-store.js');
-  const tokens = await listStoredTokens(appId);
-  if (tokens.length === 0) {
-    return jsonError(
-      'No user authorization found. Please use the feishu_oauth tool with action="authorize" to authorize a user first.'
-    );
-  }
+  const opts = await withUserAccessToken(accessToken);
 
-  const userOpenId = tokens[0].userOpenId;
-
-  try {
-    const accessToken = await getValidAccessToken({
-      userOpenId,
-      appId,
-      appSecret,
-      domain: brand ?? 'feishu',
-    });
-
-    log.info('Replying to message', {
-      message_id: p.message_id,
-      msg_type: p.msg_type,
-      reply_in_thread: p.reply_in_thread ?? false,
-    });
-
-    const Lark = await import('@larksuiteoapi/node-sdk');
-    const opts = Lark.withUserAccessToken(accessToken);
-
-    const res = await larkClient.sdk.im.v1.message.reply(
-      {
-        path: { message_id: p.message_id },
-        data: {
-          content: p.content,
-          msg_type: p.msg_type,
-          reply_in_thread: p.reply_in_thread,
-          uuid: p.uuid,
-        },
+  const res = await larkClient!.sdk.im.v1.message.reply(
+    {
+      path: { message_id: p.message_id },
+      data: {
+        content: p.content,
+        msg_type: p.msg_type,
+        reply_in_thread: p.reply_in_thread,
+        uuid: p.uuid,
       },
-      opts
-    );
+    },
+    opts
+  );
 
-    assertLarkOk(res);
+  assertLarkOk(res);
 
-    const data = res.data as Record<string, unknown> | undefined;
-    log.info('Reply sent', { message_id: data?.message_id });
+  const data = res.data as Record<string, unknown> | undefined;
+  log.info('Reply sent', { message_id: data?.message_id });
 
-    return json({
-      message_id: data?.message_id,
-      chat_id: data?.chat_id,
-      create_time: data?.create_time,
-    });
-  } catch (err) {
-    if (err instanceof NeedAuthorizationError) {
-      return jsonError(
-        `User authorization required or expired. Please use feishu_oauth tool with action="authorize" to re-authorize.`,
-        { userOpenId }
-      );
-    }
-    log.error('Reply message failed', { error: err instanceof Error ? err.message : String(err) });
-    return jsonError(err instanceof Error ? err.message : String(err));
-  }
+  return json({
+    message_id: data?.message_id,
+    chat_id: data?.chat_id,
+    create_time: data?.create_time,
+  });
 }
