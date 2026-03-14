@@ -209,7 +209,7 @@ export function registerDriveFileTool(registry: ToolRegistry): void {
       const opts = Lark.withUserAccessToken(accessToken);
 
       const res = await larkClient!.sdk.drive.file.move(
-        { path: { file_token: p.file_token }, data: { type: p.type as any, folder_token: p.folder_token } },
+        { path: { file_token: p.file_token }, data: { type: p.type as 'file' | 'folder', folder_token: p.folder_token } },
         opts
       );
       assertLarkOk(res);
@@ -245,13 +245,13 @@ export function registerDriveFileTool(registry: ToolRegistry): void {
       const opts = Lark.withUserAccessToken(accessToken);
 
       const res = await larkClient!.sdk.drive.file.delete(
-        { path: { file_token: p.file_token }, params: { type: p.type as any } },
+        { path: { file_token: p.file_token }, params: { type: p.type as 'file' | 'folder' } },
         opts
       );
       assertLarkOk(res);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const data = res.data as any;
+       
+      const data = res.data as Record<string, unknown>;
 
       return json({
         success: true,

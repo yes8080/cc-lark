@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
  * SPDX-License-Identifier: MIT
@@ -78,7 +79,7 @@ export function registerWikiSpaceTool(registry: ToolRegistry): void {
       );
       assertLarkOk(res);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const data = res.data as any;
 
       return json({
@@ -133,7 +134,7 @@ export function registerWikiSpaceTool(registry: ToolRegistry): void {
       const Lark = await import('@larksuiteoapi/node-sdk');
       const opts = Lark.withUserAccessToken(accessToken);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const data: any = {};
       if (p.name) data.name = p.name;
       if (p.description) data.description = p.description;
@@ -141,7 +142,7 @@ export function registerWikiSpaceTool(registry: ToolRegistry): void {
       const res = await larkClient!.sdk.wiki.space.create({ data }, opts);
       assertLarkOk(res);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const spaceData = res.data?.space as any;
 
       return json({ space: res.data?.space, space_id: spaceData?.space_id });

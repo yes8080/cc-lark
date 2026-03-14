@@ -18,8 +18,6 @@ import {
 import {
   getStoredToken,
   listStoredTokens,
-  setStoredToken,
-  removeStoredToken,
   tokenStatus,
 } from '../core/token-store.js';
 import { getUATStatus, saveTokenFromDeviceFlow, revokeUAT } from '../core/uat-client.js';
@@ -96,7 +94,7 @@ async function handleAuthorize(
       expiresIn: deviceAuth.expiresIn,
     });
 
-    // Provide instructions to the user
+    // Provide instructions to the user (logging for visibility)
     const instructions = [
       '===========================================',
       'OAuth Authorization Required',
@@ -112,6 +110,7 @@ async function handleAuthorize(
       'Waiting for authorization...',
       '===========================================',
     ].join('\n');
+    log.info(instructions);
 
     // Step 2: Poll for token
     const result = await pollDeviceToken({

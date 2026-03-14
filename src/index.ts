@@ -11,7 +11,6 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { z } from 'zod';
 import { logger } from './utils/logger.js';
 import { getPackageVersion } from './core/version.js';
 import { loadConfig, validateConfig } from './core/config.js';

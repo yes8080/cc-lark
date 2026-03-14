@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
  * SPDX-License-Identifier: MIT
@@ -18,12 +19,11 @@ import { LarkClient } from '../../core/lark-client.js';
 import { getValidAccessToken, NeedAuthorizationError } from '../../core/uat-client.js';
 import { assertLarkOk } from '../../core/api-error.js';
 import { json, jsonError, getCachedUserName, setCachedUserNames, type ToolResult } from './helpers.js';
-import { parseTimeRangeToSeconds, dateTimeToSecondsString, millisStringToDateTime } from './time-utils.js';
+import { parseTimeRangeToSeconds, dateTimeToSecondsString } from './time-utils.js';
 import {
   formatMessageList,
   type FormattedMessage,
   type ApiMessageItem,
-  extractMentionOpenId,
 } from './format-messages.js';
 import { logger } from '../../utils/logger.js';
 
@@ -354,7 +354,7 @@ function registerGetMessages(registry: ToolRegistry): void {
       const Lark = await import('@larksuiteoapi/node-sdk');
       const opts = Lark.withUserAccessToken(accessToken);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const res = await context.larkClient.sdk.im.v1.message.list(
         {
           params: {
@@ -423,7 +423,7 @@ function registerGetThreadMessages(registry: ToolRegistry): void {
       const Lark = await import('@larksuiteoapi/node-sdk');
       const opts = Lark.withUserAccessToken(accessToken);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const res = await context.larkClient.sdk.im.v1.message.list(
         {
           params: {
@@ -519,7 +519,7 @@ function registerSearchMessages(registry: ToolRegistry): void {
       const opts = Lark.withUserAccessToken(accessToken);
 
       // Step 1: Search for message IDs
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const searchRes = await (context.larkClient.sdk as any).search.message.create(
         {
           data: searchData,

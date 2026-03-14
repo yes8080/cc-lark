@@ -204,7 +204,7 @@ async function handleCreate(
   context: { larkClient: LarkClient | null; config: import('../../core/types.js').FeishuConfig }
 ): Promise<ToolResult> {
   const p = args as z.infer<ReturnType<typeof z.object<typeof createActionSchema>>>;
-  const { larkClient, config } = context;
+  const { larkClient } = context;
 
   const accessTokenResult = await getAccessToken(context);
   if (typeof accessTokenResult === 'object' && 'content' in accessTokenResult) {
@@ -297,9 +297,10 @@ async function handleList(
   assertLarkOk(res);
 
   // Filter for bitable type files
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const data = res.data as any;
-  const bitables = data?.files?.filter((f: any) => f.type === 'bitable') || [];
+   
+  const data = res.data as Record<string, unknown>;
+   
+  const bitables = (data?.files as Array<Record<string, unknown>>)?.filter((f) => f.type === 'bitable') || [];
 
   log.info(`list: returned ${bitables.length} bitable apps`);
 

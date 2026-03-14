@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
  * SPDX-License-Identifier: MIT
@@ -104,7 +105,7 @@ const searchActionSchema = {
   page_token: z.string().optional().describe('Pagination token'),
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function normalizeSearchResultTimeFields<T>(value: T): T {
   if (Array.isArray(value)) {
     return value.map((item) => normalizeSearchResultTimeFields(item)) as T;
@@ -170,7 +171,7 @@ export function registerSearchDocWikiTool(registry: ToolRegistry): void {
       const opts = Lark.withUserAccessToken(accessToken);
 
       // Build request body
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const requestData: any = {
         query,
         page_size: p.page_size,
@@ -182,7 +183,7 @@ export function registerSearchDocWikiTool(registry: ToolRegistry): void {
 
         // Convert time ranges
         if (filter.open_time) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           const converted: any = {};
           if (filter.open_time.start) {
             const ts = parseTimeToTimestamp(filter.open_time.start);
@@ -195,7 +196,7 @@ export function registerSearchDocWikiTool(registry: ToolRegistry): void {
           filter.open_time = converted;
         }
         if (filter.create_time) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           const converted: any = {};
           if (filter.create_time.start) {
             const ts = parseTimeToTimestamp(filter.create_time.start);
@@ -216,7 +217,7 @@ export function registerSearchDocWikiTool(registry: ToolRegistry): void {
       }
 
       // Use direct request since SDK doesn't have search API
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const res = await (larkClient!.sdk as any).request({
         method: 'POST',
         url: '/open-apis/search/v2/doc_wiki/search',

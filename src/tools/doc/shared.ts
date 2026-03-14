@@ -209,10 +209,10 @@ export function processMcpResult(result: unknown): ToolResult {
       type: string;
       text: string;
     }>;
-    let details: unknown = result;
     if (mcpContent.length === 1 && mcpContent[0]?.type === 'text') {
       try {
-        details = JSON.parse(mcpContent[0].text);
+        JSON.parse(mcpContent[0].text);
+        // text is valid JSON, return as-is
       } catch {
         // text is not JSON, keep original result
       }

@@ -9,9 +9,6 @@
 
 import { z } from 'zod';
 import { assertLarkOk } from '../../core/api-error.js';
-import { logger } from '../../utils/logger.js';
-
-const log = logger('tools:im:helpers');
 
 // ---------------------------------------------------------------------------
 // User name cache

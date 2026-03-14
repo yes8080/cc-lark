@@ -14,7 +14,7 @@ import { z } from 'zod';
 import type { ToolRegistry } from '../index.js';
 import { LarkClient } from '../../core/lark-client.js';
 import { getValidAccessToken, NeedAuthorizationError } from '../../core/uat-client.js';
-import { callMcpTool, json, jsonError, processMcpResult, type ToolResult } from './shared.js';
+import { callMcpTool, jsonError, processMcpResult, type ToolResult } from './shared.js';
 import { logger } from '../../utils/logger.js';
 
 const log = logger('tools:doc:fetch');

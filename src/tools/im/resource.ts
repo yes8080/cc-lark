@@ -18,7 +18,6 @@ import { dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { ToolRegistry } from '../index.js';
-import { LarkClient } from '../../core/lark-client.js';
 import { getValidAccessToken, NeedAuthorizationError } from '../../core/uat-client.js';
 import { json, jsonError } from './helpers.js';
 import { logger } from '../../utils/logger.js';

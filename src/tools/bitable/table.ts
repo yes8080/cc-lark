@@ -259,7 +259,8 @@ async function handleCreate(
       if ((field.type === 7 || field.type === 15) && field.property !== undefined) {
         const fieldTypeName = field.type === 15 ? 'URL' : 'Checkbox';
         log.warn(`create: ${fieldTypeName} field (type=${field.type}) detected with property. Removing property to avoid API error.`);
-        const { property: _property, ...fieldWithoutProperty } = field;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { property: _, ...fieldWithoutProperty } = field;
         return fieldWithoutProperty;
       }
       return field;

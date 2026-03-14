@@ -38,7 +38,9 @@ function parseSheetUrl(url: string): { token: string; sheetId?: string } | null 
 
 /**
  * Convert column number to letter (A, B, ..., Z, AA, AB, ...).
+ * Used for spreadsheet column references (e.g., A1, B2).
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function colLetter(n: number): string {
   let result = '';
   while (n > 0) {
@@ -109,8 +111,8 @@ async function getAccessToken(context: { larkClient: LarkClient | null; config: 
 
 async function resolveToken(
   p: { url?: string; spreadsheet_token?: string },
-  larkClient: LarkClient,
-  accessToken: string
+  _larkClient: LarkClient,
+  _accessToken: string
 ): Promise<{ token: string; urlSheetId?: string }> {
   let token: string;
   let urlSheetId: string | undefined;
@@ -234,7 +236,8 @@ export function registerSheetTool(registry: ToolRegistry): void {
 
       // Truncate if needed
       let truncated = false;
-      let totalRows = values?.length ?? 0;
+       
+      const totalRows = values?.length ?? 0;
       if (values && values.length > MAX_READ_ROWS) {
         values = values.slice(0, MAX_READ_ROWS);
         truncated = true;
