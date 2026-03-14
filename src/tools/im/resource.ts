@@ -18,7 +18,7 @@ import { dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { ToolRegistry } from '../index.js';
-import { getValidAccessToken, NeedAuthorizationError } from '../../core/uat-client.js';
+import { getToolAccessToken, isToolResult, withUserAccessToken } from '../common/auth-helper.js';
 import { json, jsonError } from './helpers.js';
 import { logger } from '../../utils/logger.js';
 
@@ -131,72 +131,51 @@ export function registerImFetchResourceTool(registry: ToolRegistry): void {
         return jsonError('LarkClient not initialized. Check FEISHU_APP_ID and FEISHU_APP_SECRET.');
       }
 
-      const { appId, appSecret, brand } = context.config;
-      if (!appId || !appSecret) {
-        return jsonError('Missing FEISHU_APP_ID or FEISHU_APP_SECRET.');
+      const tokenResult = await getToolAccessToken(context);
+      if (isToolResult(tokenResult)) return tokenResult;
+      const accessToken = tokenResult;
+
+      log.info('fetch_resource: downloading', {
+        message_id: p.message_id,
+        file_key: p.file_key,
+        type: p.type,
+      });
+
+      const opts = await withUserAccessToken(accessToken);
+
+      // Download the resource
+      const res = await context.larkClient.sdk.im.v1.messageResource.get(
+        {
+          params: { type: p.type },
+          path: { message_id: p.message_id, file_key: p.file_key },
+        },
+        opts
+      );
+
+      // Response is a binary stream, use getReadableStream()
+      const stream = res.getReadableStream();
+      const chunks: Buffer[] = [];
+
+      for await (const chunk of stream) {
+        chunks.push(chunk);
       }
 
-      // Get the first stored user token
-      const { listStoredTokens } = await import('../../core/token-store.js');
-      const tokens = await listStoredTokens(appId);
-      if (tokens.length === 0) {
-        return jsonError(
-          'No user authorization found. Please use the feishu_oauth tool with action="authorize" to authorize a user first.'
-        );
-      }
+      const buffer = Buffer.concat(chunks);
+      log.info(`fetch_resource: downloaded ${buffer.length} bytes`);
 
-      const userOpenId = tokens[0].userOpenId;
+      // Get Content-Type from response headers
+      const contentType = (res.headers as Record<string, string>)?.['content-type'] || '';
+      log.info(`fetch_resource: content-type=${contentType}`);
 
-      try {
-        const accessToken = await getValidAccessToken({
-          userOpenId,
-          appId,
-          appSecret,
-          domain: brand ?? 'feishu',
-        });
+      // Infer extension from Content-Type
+      const mimeType = contentType ? contentType.split(';')[0].trim() : '';
+      const mimeExt = mimeType ? MIME_TO_EXT[mimeType] : undefined;
 
-        log.info('fetch_resource: downloading', {
-          message_id: p.message_id,
-          file_key: p.file_key,
-          type: p.type,
-        });
-
-        const Lark = await import('@larksuiteoapi/node-sdk');
-        const opts = Lark.withUserAccessToken(accessToken);
-
-        // Download the resource
-        const res = await context.larkClient.sdk.im.v1.messageResource.get(
-          {
-            params: { type: p.type },
-            path: { message_id: p.message_id, file_key: p.file_key },
-          },
-          opts
-        );
-
-        // Response is a binary stream, use getReadableStream()
-        const stream = res.getReadableStream();
-        const chunks: Buffer[] = [];
-
-        for await (const chunk of stream) {
-          chunks.push(chunk);
-        }
-
-        const buffer = Buffer.concat(chunks);
-        log.info(`fetch_resource: downloaded ${buffer.length} bytes`);
-
-        // Get Content-Type from response headers
-        const contentType = (res.headers as Record<string, string>)?.['content-type'] || '';
-        log.info(`fetch_resource: content-type=${contentType}`);
-
-        // Infer extension from Content-Type
-        const mimeType = contentType ? contentType.split(';')[0].trim() : '';
-        const mimeExt = mimeType ? MIME_TO_EXT[mimeType] : undefined;
-
-        const finalPath = buildRandomTempFilePath({
-          prefix: 'im-resource',
-          extension: mimeExt,
-        });
-        log.info(`fetch_resource: saving to ${finalPath}`);
+      const finalPath = buildRandomTempFilePath({
+        prefix: 'im-resource',
+        extension: mimeExt,
+      });
+      log.info(`fetch_resource: saving to ${finalPath}`);
 
         // Ensure parent directory exists
         await mkdir(dirname(finalPath), { recursive: true });
@@ -205,26 +184,14 @@ export function registerImFetchResourceTool(registry: ToolRegistry): void {
         await writeFile(finalPath, buffer);
         log.info(`fetch_resource: saved to ${finalPath}`);
 
-        return json({
-          message_id: p.message_id,
-          file_key: p.file_key,
-          type: p.type,
-          size_bytes: buffer.length,
-          content_type: contentType,
-          saved_path: finalPath,
-        });
-      } catch (err) {
-        if (err instanceof NeedAuthorizationError) {
-          return jsonError(
-            `User authorization required or expired. Please use feishu_oauth tool with action="authorize" to re-authorize.`,
-            { userOpenId }
-          );
-        }
-        log.error('fetch_resource failed', {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        return jsonError(err instanceof Error ? err.message : String(err));
-      }
+      return json({
+        message_id: p.message_id,
+        file_key: p.file_key,
+        type: p.type,
+        size_bytes: buffer.length,
+        content_type: contentType,
+        saved_path: finalPath,
+      });
     },
   });
 

@@ -20,9 +20,9 @@
 import { z } from 'zod';
 import type { ToolRegistry } from '../index.js';
 import { LarkClient } from '../../core/lark-client.js';
-import { getValidAccessToken, NeedAuthorizationError } from '../../core/uat-client.js';
+import { getToolAccessToken, isToolResult, withUserAccessToken } from '../common/auth-helper.js';
 import { assertLarkOk } from '../../core/api-error.js';
-import { json, jsonError, type ToolResult } from '../im/helpers.js';
+import { json, jsonError, type ToolResult } from '../common/helpers.js';
 import { logger } from '../../utils/logger.js';
 
 const log = logger('tools:bitable:table');
@@ -204,46 +204,6 @@ export function registerBitableTableTool(registry: ToolRegistry): void {
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function getAccessToken(context: {
-  larkClient: LarkClient | null;
-  config: import('../../core/types.js').FeishuConfig;
-}): Promise<string | ToolResult> {
-  const { larkClient, config } = context;
-  if (!larkClient) {
-    return jsonError('LarkClient not initialized. Check FEISHU_APP_ID and FEISHU_APP_SECRET.');
-  }
-  const { appId, appSecret, brand } = config;
-  if (!appId || !appSecret) {
-    return jsonError('Missing FEISHU_APP_ID or FEISHU_APP_SECRET.');
-  }
-
-  const { listStoredTokens } = await import('../../core/token-store.js');
-  const tokens = await listStoredTokens(appId);
-  if (tokens.length === 0) {
-    return jsonError(
-      'No user authorization found. Please use the feishu_oauth tool with action="authorize" to authorize a user first.'
-    );
-  }
-
-  const userOpenId = tokens[0].userOpenId;
-
-  try {
-    return await getValidAccessToken({
-      userOpenId,
-      appId,
-      appSecret,
-      domain: brand ?? 'feishu',
-    });
-  } catch (err) {
-    if (err instanceof NeedAuthorizationError) {
-      return jsonError(
-        `User authorization required or expired. Please use feishu_oauth tool with action="authorize" to re-authorize.`,
-        { userOpenId }
-      );
-    }
-    throw err;
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Handlers
@@ -256,18 +216,15 @@ async function handleCreate(
   const p = args as z.infer<ReturnType<typeof z.object<typeof createActionSchema>>>;
   const { larkClient } = context;
 
-  const accessTokenResult = await getAccessToken(context);
-  if (typeof accessTokenResult === 'object' && 'content' in accessTokenResult) {
-    return accessTokenResult;
-  }
+  const accessTokenResult = await getToolAccessToken(context);
+  if (isToolResult(accessTokenResult)) return accessTokenResult;
   const accessToken = accessTokenResult;
 
   log.info(
     `create: app_token=${p.app_token}, table_name=${p.table.name}, fields_count=${p.table.fields?.length ?? 0}`
   );
 
-  const Lark = await import('@larksuiteoapi/node-sdk');
-  const opts = Lark.withUserAccessToken(accessToken);
+  const opts = await withUserAccessToken(accessToken);
 
   // Handle special case: checkbox (type=7) and URL (type=15) fields must not have property
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -312,16 +269,13 @@ async function handleList(
   const p = args as z.infer<ReturnType<typeof z.object<typeof listActionSchema>>>;
   const { larkClient } = context;
 
-  const accessTokenResult = await getAccessToken(context);
-  if (typeof accessTokenResult === 'object' && 'content' in accessTokenResult) {
-    return accessTokenResult;
-  }
+  const accessTokenResult = await getToolAccessToken(context);
+  if (isToolResult(accessTokenResult)) return accessTokenResult;
   const accessToken = accessTokenResult;
 
   log.info(`list: app_token=${p.app_token}, page_size=${p.page_size ?? 50}`);
 
-  const Lark = await import('@larksuiteoapi/node-sdk');
-  const opts = Lark.withUserAccessToken(accessToken);
+  const opts = await withUserAccessToken(accessToken);
 
   const res = await larkClient!.sdk.bitable.appTable.list(
     {
@@ -354,16 +308,13 @@ async function handlePatch(
   const p = args as z.infer<ReturnType<typeof z.object<typeof patchActionSchema>>>;
   const { larkClient } = context;
 
-  const accessTokenResult = await getAccessToken(context);
-  if (typeof accessTokenResult === 'object' && 'content' in accessTokenResult) {
-    return accessTokenResult;
-  }
+  const accessTokenResult = await getToolAccessToken(context);
+  if (isToolResult(accessTokenResult)) return accessTokenResult;
   const accessToken = accessTokenResult;
 
   log.info(`patch: app_token=${p.app_token}, table_id=${p.table_id}, name=${p.name}`);
 
-  const Lark = await import('@larksuiteoapi/node-sdk');
-  const opts = Lark.withUserAccessToken(accessToken);
+  const opts = await withUserAccessToken(accessToken);
 
   const res = await larkClient!.sdk.bitable.appTable.patch(
     {
@@ -391,16 +342,13 @@ async function handleDelete(
   const p = args as z.infer<ReturnType<typeof z.object<typeof deleteActionSchema>>>;
   const { larkClient } = context;
 
-  const accessTokenResult = await getAccessToken(context);
-  if (typeof accessTokenResult === 'object' && 'content' in accessTokenResult) {
-    return accessTokenResult;
-  }
+  const accessTokenResult = await getToolAccessToken(context);
+  if (isToolResult(accessTokenResult)) return accessTokenResult;
   const accessToken = accessTokenResult;
 
   log.info(`delete: app_token=${p.app_token}, table_id=${p.table_id}`);
 
-  const Lark = await import('@larksuiteoapi/node-sdk');
-  const opts = Lark.withUserAccessToken(accessToken);
+  const opts = await withUserAccessToken(accessToken);
 
   const res = await larkClient!.sdk.bitable.appTable.delete(
     {
@@ -429,16 +377,13 @@ async function handleBatchCreate(
     return jsonError('tables is required and cannot be empty');
   }
 
-  const accessTokenResult = await getAccessToken(context);
-  if (typeof accessTokenResult === 'object' && 'content' in accessTokenResult) {
-    return accessTokenResult;
-  }
+  const accessTokenResult = await getToolAccessToken(context);
+  if (isToolResult(accessTokenResult)) return accessTokenResult;
   const accessToken = accessTokenResult;
 
   log.info(`batch_create: app_token=${p.app_token}, tables_count=${p.tables.length}`);
 
-  const Lark = await import('@larksuiteoapi/node-sdk');
-  const opts = Lark.withUserAccessToken(accessToken);
+  const opts = await withUserAccessToken(accessToken);
 
   const res = await larkClient!.sdk.bitable.appTable.batchCreate(
     {
@@ -467,16 +412,13 @@ async function handleBatchDelete(
     return jsonError('table_ids is required and cannot be empty');
   }
 
-  const accessTokenResult = await getAccessToken(context);
-  if (typeof accessTokenResult === 'object' && 'content' in accessTokenResult) {
-    return accessTokenResult;
-  }
+  const accessTokenResult = await getToolAccessToken(context);
+  if (isToolResult(accessTokenResult)) return accessTokenResult;
   const accessToken = accessTokenResult;
 
   log.info(`batch_delete: app_token=${p.app_token}, table_ids_count=${p.table_ids.length}`);
 
-  const Lark = await import('@larksuiteoapi/node-sdk');
-  const opts = Lark.withUserAccessToken(accessToken);
+  const opts = await withUserAccessToken(accessToken);
 
   const res = await larkClient!.sdk.bitable.appTable.batchDelete(
     {

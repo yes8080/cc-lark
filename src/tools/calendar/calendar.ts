@@ -17,9 +17,9 @@
 import { z } from 'zod';
 import type { ToolRegistry } from '../index.js';
 import { LarkClient } from '../../core/lark-client.js';
-import { getValidAccessToken, NeedAuthorizationError } from '../../core/uat-client.js';
+import { getToolAccessToken, isToolResult, withUserAccessToken } from '../common/auth-helper.js';
 import { assertLarkOk } from '../../core/api-error.js';
-import { json, jsonError, type ToolResult } from '../im/helpers.js';
+import { json, jsonError, type ToolResult } from '../common/helpers.js';
 import { logger } from '../../utils/logger.js';
 
 const log = logger('tools:calendar:calendar');
@@ -98,46 +98,6 @@ export function registerCalendarTool(registry: ToolRegistry): void {
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function getAccessToken(context: {
-  larkClient: LarkClient | null;
-  config: import('../../core/types.js').FeishuConfig;
-}): Promise<string | ToolResult> {
-  const { larkClient, config } = context;
-  if (!larkClient) {
-    return jsonError('LarkClient not initialized. Check FEISHU_APP_ID and FEISHU_APP_SECRET.');
-  }
-  const { appId, appSecret, brand } = config;
-  if (!appId || !appSecret) {
-    return jsonError('Missing FEISHU_APP_ID or FEISHU_APP_SECRET.');
-  }
-
-  const { listStoredTokens } = await import('../../core/token-store.js');
-  const tokens = await listStoredTokens(appId);
-  if (tokens.length === 0) {
-    return jsonError(
-      'No user authorization found. Please use the feishu_oauth tool with action="authorize" to authorize a user first.'
-    );
-  }
-
-  const userOpenId = tokens[0].userOpenId;
-
-  try {
-    return await getValidAccessToken({
-      userOpenId,
-      appId,
-      appSecret,
-      domain: brand ?? 'feishu',
-    });
-  } catch (err) {
-    if (err instanceof NeedAuthorizationError) {
-      return jsonError(
-        `User authorization required or expired. Please use feishu_oauth tool with action="authorize" to re-authorize.`,
-        { userOpenId }
-      );
-    }
-    throw err;
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Handlers
@@ -150,16 +110,13 @@ async function handleList(
   const p = args as z.infer<ReturnType<typeof z.object<typeof listActionSchema>>>;
   const { larkClient } = context;
 
-  const accessTokenResult = await getAccessToken(context);
-  if (typeof accessTokenResult === 'object' && 'content' in accessTokenResult) {
-    return accessTokenResult;
-  }
+  const accessTokenResult = await getToolAccessToken(context);
+  if (isToolResult(accessTokenResult)) return accessTokenResult;
   const accessToken = accessTokenResult;
 
   log.info(`list: page_size=${p.page_size ?? 50}, page_token=${p.page_token ?? 'none'}`);
 
-  const Lark = await import('@larksuiteoapi/node-sdk');
-  const opts = Lark.withUserAccessToken(accessToken);
+  const opts = await withUserAccessToken(accessToken);
 
   const res = await larkClient!.sdk.calendar.calendar.list(
     {
@@ -196,16 +153,13 @@ async function handleGet(
     return jsonError("calendar_id is required for 'get' action");
   }
 
-  const accessTokenResult = await getAccessToken(context);
-  if (typeof accessTokenResult === 'object' && 'content' in accessTokenResult) {
-    return accessTokenResult;
-  }
+  const accessTokenResult = await getToolAccessToken(context);
+  if (isToolResult(accessTokenResult)) return accessTokenResult;
   const accessToken = accessTokenResult;
 
   log.info(`get: calendar_id=${p.calendar_id}`);
 
-  const Lark = await import('@larksuiteoapi/node-sdk');
-  const opts = Lark.withUserAccessToken(accessToken);
+  const opts = await withUserAccessToken(accessToken);
 
   const res = await larkClient!.sdk.calendar.calendar.get(
     {
@@ -231,16 +185,13 @@ async function handlePrimary(
 ): Promise<ToolResult> {
   const { larkClient } = context;
 
-  const accessTokenResult = await getAccessToken(context);
-  if (typeof accessTokenResult === 'object' && 'content' in accessTokenResult) {
-    return accessTokenResult;
-  }
+  const accessTokenResult = await getToolAccessToken(context);
+  if (isToolResult(accessTokenResult)) return accessTokenResult;
   const accessToken = accessTokenResult;
 
   log.info(`primary: querying primary calendar`);
 
-  const Lark = await import('@larksuiteoapi/node-sdk');
-  const opts = Lark.withUserAccessToken(accessToken);
+  const opts = await withUserAccessToken(accessToken);
 
   const res = await larkClient!.sdk.calendar.calendar.primary({}, opts);
   assertLarkOk(res);

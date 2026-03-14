@@ -11,10 +11,9 @@
 
 import { z } from 'zod';
 import type { ToolRegistry } from '../index.js';
-import { LarkClient } from '../../core/lark-client.js';
-import { getValidAccessToken, NeedAuthorizationError } from '../../core/uat-client.js';
+import { getToolAccessToken, isToolResult, withUserAccessToken } from '../common/auth-helper.js';
 import { assertLarkOk } from '../../core/api-error.js';
-import { json, jsonError, type ToolResult } from '../im/helpers.js';
+import { json, jsonError } from '../common/helpers.js';
 import { logger } from '../../utils/logger.js';
 
 const log = logger('tools:drive:file');
@@ -75,29 +74,6 @@ const deleteActionSchema = {
   type: docTypeEnum.describe('Document type'),
 };
 
-async function getAccessToken(context: {
-  larkClient: LarkClient | null;
-  config: import('../../core/types.js').FeishuConfig;
-}): Promise<string | ToolResult> {
-  const { larkClient, config } = context;
-  if (!larkClient) return jsonError('LarkClient not initialized.');
-  const { appId, appSecret, brand } = config;
-  if (!appId || !appSecret) return jsonError('Missing FEISHU_APP_ID or FEISHU_APP_SECRET.');
-
-  const { listStoredTokens } = await import('../../core/token-store.js');
-  const tokens = await listStoredTokens(appId);
-  if (tokens.length === 0)
-    return jsonError('No user authorization found. Use feishu_oauth tool first.');
-  const userOpenId = tokens[0].userOpenId;
-
-  try {
-    return await getValidAccessToken({ userOpenId, appId, appSecret, domain: brand ?? 'feishu' });
-  } catch (err) {
-    if (err instanceof NeedAuthorizationError)
-      return jsonError('User authorization expired. Re-authorize with feishu_oauth.');
-    throw err;
-  }
-}
 
 export function registerDriveFileTool(registry: ToolRegistry): void {
   // List files
@@ -109,14 +85,13 @@ export function registerDriveFileTool(registry: ToolRegistry): void {
       const p = args as z.infer<ReturnType<typeof z.object<typeof listActionSchema>>>;
       const { larkClient } = context;
 
-      const tokenResult = await getAccessToken(context);
-      if (typeof tokenResult === 'object' && 'content' in tokenResult) return tokenResult;
+      const tokenResult = await getToolAccessToken(context);
+      if (isToolResult(tokenResult)) return tokenResult;
       const accessToken = tokenResult;
 
       log.info(`list: folder_token=${p.folder_token || '(root)'}, page_size=${p.page_size ?? 200}`);
 
-      const Lark = await import('@larksuiteoapi/node-sdk');
-      const opts = Lark.withUserAccessToken(accessToken);
+      const opts = await withUserAccessToken(accessToken);
 
       const res = await larkClient!.sdk.drive.v1.file.list(
         {
@@ -156,14 +131,13 @@ export function registerDriveFileTool(registry: ToolRegistry): void {
         return jsonError('request_docs must be a non-empty array');
       }
 
-      const tokenResult = await getAccessToken(context);
-      if (typeof tokenResult === 'object' && 'content' in tokenResult) return tokenResult;
+      const tokenResult = await getToolAccessToken(context);
+      if (isToolResult(tokenResult)) return tokenResult;
       const accessToken = tokenResult;
 
       log.info(`get_meta: querying ${p.request_docs.length} documents`);
 
-      const Lark = await import('@larksuiteoapi/node-sdk');
-      const opts = Lark.withUserAccessToken(accessToken);
+      const opts = await withUserAccessToken(accessToken);
 
       const res = await larkClient!.sdk.drive.meta.batchQuery(
         { data: { request_docs: p.request_docs } },
@@ -184,14 +158,13 @@ export function registerDriveFileTool(registry: ToolRegistry): void {
       const p = args as z.infer<ReturnType<typeof z.object<typeof copyActionSchema>>>;
       const { larkClient } = context;
 
-      const tokenResult = await getAccessToken(context);
-      if (typeof tokenResult === 'object' && 'content' in tokenResult) return tokenResult;
+      const tokenResult = await getToolAccessToken(context);
+      if (isToolResult(tokenResult)) return tokenResult;
       const accessToken = tokenResult;
 
       log.info(`copy: file_token=${p.file_token}, name=${p.name}, type=${p.type}`);
 
-      const Lark = await import('@larksuiteoapi/node-sdk');
-      const opts = Lark.withUserAccessToken(accessToken);
+      const opts = await withUserAccessToken(accessToken);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const data: any = { name: p.name, type: p.type };
@@ -219,14 +192,13 @@ export function registerDriveFileTool(registry: ToolRegistry): void {
       const p = args as z.infer<ReturnType<typeof z.object<typeof moveActionSchema>>>;
       const { larkClient } = context;
 
-      const tokenResult = await getAccessToken(context);
-      if (typeof tokenResult === 'object' && 'content' in tokenResult) return tokenResult;
+      const tokenResult = await getToolAccessToken(context);
+      if (isToolResult(tokenResult)) return tokenResult;
       const accessToken = tokenResult;
 
       log.info(`move: file_token=${p.file_token}, type=${p.type}, folder_token=${p.folder_token}`);
 
-      const Lark = await import('@larksuiteoapi/node-sdk');
-      const opts = Lark.withUserAccessToken(accessToken);
+      const opts = await withUserAccessToken(accessToken);
 
       const res = await larkClient!.sdk.drive.file.move(
         {
@@ -258,14 +230,13 @@ export function registerDriveFileTool(registry: ToolRegistry): void {
       const p = args as z.infer<ReturnType<typeof z.object<typeof deleteActionSchema>>>;
       const { larkClient } = context;
 
-      const tokenResult = await getAccessToken(context);
-      if (typeof tokenResult === 'object' && 'content' in tokenResult) return tokenResult;
+      const tokenResult = await getToolAccessToken(context);
+      if (isToolResult(tokenResult)) return tokenResult;
       const accessToken = tokenResult;
 
       log.info(`delete: file_token=${p.file_token}, type=${p.type}`);
 
-      const Lark = await import('@larksuiteoapi/node-sdk');
-      const opts = Lark.withUserAccessToken(accessToken);
+      const opts = await withUserAccessToken(accessToken);
 
       const res = await larkClient!.sdk.drive.file.delete(
         { path: { file_token: p.file_token }, params: { type: p.type as 'file' | 'folder' } },

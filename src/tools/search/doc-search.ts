@@ -8,77 +8,23 @@
 
 import { z } from 'zod';
 import type { ToolRegistry } from '../index.js';
-import { LarkClient } from '../../core/lark-client.js';
-import { getValidAccessToken, NeedAuthorizationError } from '../../core/uat-client.js';
-import { json, jsonError, type ToolResult } from '../im/helpers.js';
+import { getToolAccessToken, isToolResult, withUserAccessToken } from '../common/auth-helper.js';
+import { json, jsonError } from '../common/helpers.js';
+import {
+  parseTimeToTimestamp as parseTimeToTimestampStr,
+  unixTimestampToISO8601,
+} from '../im/time-utils.js';
 import { logger } from '../../utils/logger.js';
 
 const log = logger('tools:search:doc-wiki');
 
 /**
- * Convert Unix timestamp to ISO 8601 in Shanghai timezone.
- */
-function unixTimestampToISO8601(raw: string | number | undefined): string | null {
-  if (raw === undefined || raw === null) return null;
-  const text = typeof raw === 'number' ? String(raw) : String(raw).trim();
-  if (!/^-?\d+$/.test(text)) return null;
-
-  const num = Number(text);
-  if (!Number.isFinite(num)) return null;
-
-  const utcMs = Math.abs(num) >= 1e12 ? num : num * 1000;
-  const beijingDate = new Date(utcMs + 8 * 60 * 60 * 1000);
-  if (Number.isNaN(beijingDate.getTime())) return null;
-
-  const year = beijingDate.getUTCFullYear();
-  const month = String(beijingDate.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(beijingDate.getUTCDate()).padStart(2, '0');
-  const hour = String(beijingDate.getUTCHours()).padStart(2, '0');
-  const minute = String(beijingDate.getUTCMinutes()).padStart(2, '0');
-  const second = String(beijingDate.getUTCSeconds()).padStart(2, '0');
-
-  return `${year}-${month}-${day}T${hour}:${minute}:${second}+08:00`;
-}
-
-/**
- * Parse time string to Unix timestamp (seconds).
+ * Parse time string to Unix timestamp (seconds) as a number.
+ * Wraps the shared parseTimeToTimestamp to return number | undefined.
  */
 function parseTimeToTimestamp(input: string): number | undefined {
-  try {
-    const trimmed = input.trim();
-    const hasTimezone = /[Zz]$|[+-]\d{2}:\d{2}$/.test(trimmed);
-
-    if (hasTimezone) {
-      const date = new Date(trimmed);
-      if (isNaN(date.getTime())) return undefined;
-      return Math.floor(date.getTime() / 1000);
-    }
-
-    const normalized = trimmed.replace('T', ' ');
-    const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?$/);
-
-    if (!match) {
-      const date = new Date(trimmed);
-      if (isNaN(date.getTime())) return undefined;
-      return Math.floor(date.getTime() / 1000);
-    }
-
-    const [, year, month, day, hour, minute, second] = match;
-    const utcDate = new Date(
-      Date.UTC(
-        parseInt(year),
-        parseInt(month) - 1,
-        parseInt(day),
-        parseInt(hour) - 8,
-        parseInt(minute),
-        parseInt(second ?? '0')
-      )
-    );
-
-    return Math.floor(utcDate.getTime() / 1000);
-  } catch {
-    return undefined;
-  }
+  const result = parseTimeToTimestampStr(input);
+  return result !== null ? parseInt(result, 10) : undefined;
 }
 
 // Schemas
@@ -145,27 +91,6 @@ function normalizeSearchResultTimeFields<T>(value: T): T {
   return normalized as T;
 }
 
-async function getAccessToken(context: {
-  larkClient: LarkClient | null;
-  config: import('../../core/types.js').FeishuConfig;
-}): Promise<string | ToolResult> {
-  const { larkClient, config } = context;
-  if (!larkClient) return jsonError('LarkClient not initialized.');
-  const { appId, appSecret, brand } = config;
-  if (!appId || !appSecret) return jsonError('Missing FEISHU_APP_ID or FEISHU_APP_SECRET.');
-
-  const { listStoredTokens } = await import('../../core/token-store.js');
-  const tokens = await listStoredTokens(appId);
-  if (tokens.length === 0) return jsonError('No user authorization found.');
-  const userOpenId = tokens[0].userOpenId;
-
-  try {
-    return await getValidAccessToken({ userOpenId, appId, appSecret, domain: brand ?? 'feishu' });
-  } catch (err) {
-    if (err instanceof NeedAuthorizationError) return jsonError('User authorization expired.');
-    throw err;
-  }
-}
 
 export function registerSearchDocWikiTool(registry: ToolRegistry): void {
   registry.register({
@@ -176,8 +101,8 @@ export function registerSearchDocWikiTool(registry: ToolRegistry): void {
       const p = args as z.infer<ReturnType<typeof z.object<typeof searchActionSchema>>>;
       const { larkClient } = context;
 
-      const tokenResult = await getAccessToken(context);
-      if (typeof tokenResult === 'object' && 'content' in tokenResult) return tokenResult;
+      const tokenResult = await getToolAccessToken(context);
+      if (isToolResult(tokenResult)) return tokenResult;
       const accessToken = tokenResult;
 
       const query = p.query ?? '';
@@ -185,8 +110,7 @@ export function registerSearchDocWikiTool(registry: ToolRegistry): void {
         `search: query="${query}", has_filter=${!!p.filter}, page_size=${p.page_size ?? 15}`
       );
 
-      const Lark = await import('@larksuiteoapi/node-sdk');
-      const opts = Lark.withUserAccessToken(accessToken);
+      const opts = await withUserAccessToken(accessToken);
 
       // Build request body
 

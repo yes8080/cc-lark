@@ -10,9 +10,9 @@
 import { z } from 'zod';
 import type { ToolRegistry } from '../index.js';
 import { LarkClient } from '../../core/lark-client.js';
-import { getValidAccessToken, NeedAuthorizationError } from '../../core/uat-client.js';
+import { getToolAccessToken, isToolResult, withUserAccessToken } from '../common/auth-helper.js';
 import { assertLarkOk } from '../../core/api-error.js';
-import { json, jsonError, type ToolResult } from '../im/helpers.js';
+import { json, jsonError } from '../common/helpers.js';
 import { logger } from '../../utils/logger.js';
 
 const log = logger('tools:sheets:sheet');
@@ -90,27 +90,6 @@ const createActionSchema = {
   folder_token: z.string().optional().describe('Folder token (optional)'),
 };
 
-async function getAccessToken(context: {
-  larkClient: LarkClient | null;
-  config: import('../../core/types.js').FeishuConfig;
-}): Promise<string | ToolResult> {
-  const { larkClient, config } = context;
-  if (!larkClient) return jsonError('LarkClient not initialized.');
-  const { appId, appSecret, brand } = config;
-  if (!appId || !appSecret) return jsonError('Missing FEISHU_APP_ID or FEISHU_APP_SECRET.');
-
-  const { listStoredTokens } = await import('../../core/token-store.js');
-  const tokens = await listStoredTokens(appId);
-  if (tokens.length === 0) return jsonError('No user authorization found.');
-  const userOpenId = tokens[0].userOpenId;
-
-  try {
-    return await getValidAccessToken({ userOpenId, appId, appSecret, domain: brand ?? 'feishu' });
-  } catch (err) {
-    if (err instanceof NeedAuthorizationError) return jsonError('User authorization expired.');
-    throw err;
-  }
-}
 
 async function resolveToken(
   p: { url?: string; spreadsheet_token?: string },
@@ -146,15 +125,14 @@ export function registerSheetTool(registry: ToolRegistry): void {
       const p = args as z.infer<ReturnType<typeof z.object<typeof infoActionSchema>>>;
       const { larkClient } = context;
 
-      const tokenResult = await getAccessToken(context);
-      if (typeof tokenResult === 'object' && 'content' in tokenResult) return tokenResult;
+      const tokenResult = await getToolAccessToken(context);
+      if (isToolResult(tokenResult)) return tokenResult;
       const accessToken = tokenResult;
 
       const { token } = await resolveToken(p, larkClient!, accessToken);
       log.info(`info: token=${token}`);
 
-      const Lark = await import('@larksuiteoapi/node-sdk');
-      const opts = Lark.withUserAccessToken(accessToken);
+      const opts = await withUserAccessToken(accessToken);
 
       const [spreadsheetRes, sheetsRes] = await Promise.all([
         larkClient!.sdk.sheets.spreadsheet.get({ path: { spreadsheet_token: token } }, opts),
@@ -192,8 +170,8 @@ export function registerSheetTool(registry: ToolRegistry): void {
       const p = args as z.infer<ReturnType<typeof z.object<typeof readActionSchema>>>;
       const { larkClient } = context;
 
-      const tokenResult = await getAccessToken(context);
-      if (typeof tokenResult === 'object' && 'content' in tokenResult) return tokenResult;
+      const tokenResult = await getToolAccessToken(context);
+      if (isToolResult(tokenResult)) return tokenResult;
       const accessToken = tokenResult;
 
       const { token, urlSheetId } = await resolveToken(p, larkClient!, accessToken);
@@ -204,8 +182,7 @@ export function registerSheetTool(registry: ToolRegistry): void {
 
       if (!range) {
         // Get first sheet
-        const Lark = await import('@larksuiteoapi/node-sdk');
-        const opts = Lark.withUserAccessToken(accessToken);
+        const opts = await withUserAccessToken(accessToken);
         const sheetsRes = await larkClient!.sdk.sheets.spreadsheetSheet.query(
           { path: { spreadsheet_token: token } },
           opts
@@ -222,8 +199,7 @@ export function registerSheetTool(registry: ToolRegistry): void {
       log.info(`read: token=${token}, range=${range}`);
 
       // Use direct API call for reading values
-      const Lark = await import('@larksuiteoapi/node-sdk');
-      const opts = Lark.withUserAccessToken(accessToken);
+      const opts = await withUserAccessToken(accessToken);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const res = await (larkClient!.sdk as any).request(
@@ -276,8 +252,8 @@ export function registerSheetTool(registry: ToolRegistry): void {
       const p = args as z.infer<ReturnType<typeof z.object<typeof writeActionSchema>>>;
       const { larkClient } = context;
 
-      const tokenResult = await getAccessToken(context);
-      if (typeof tokenResult === 'object' && 'content' in tokenResult) return tokenResult;
+      const tokenResult = await getToolAccessToken(context);
+      if (isToolResult(tokenResult)) return tokenResult;
       const accessToken = tokenResult;
 
       const { token, urlSheetId } = await resolveToken(p, larkClient!, accessToken);
@@ -288,8 +264,7 @@ export function registerSheetTool(registry: ToolRegistry): void {
 
       log.info(`write: token=${token}, range=${range}, rows=${p.values?.length}`);
 
-      const Lark = await import('@larksuiteoapi/node-sdk');
-      const opts = Lark.withUserAccessToken(accessToken);
+      const opts = await withUserAccessToken(accessToken);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const res = await (larkClient!.sdk as any).request(
@@ -324,8 +299,8 @@ export function registerSheetTool(registry: ToolRegistry): void {
       const p = args as z.infer<ReturnType<typeof z.object<typeof appendActionSchema>>>;
       const { larkClient } = context;
 
-      const tokenResult = await getAccessToken(context);
-      if (typeof tokenResult === 'object' && 'content' in tokenResult) return tokenResult;
+      const tokenResult = await getToolAccessToken(context);
+      if (isToolResult(tokenResult)) return tokenResult;
       const accessToken = tokenResult;
 
       const { token, urlSheetId } = await resolveToken(p, larkClient!, accessToken);
@@ -336,8 +311,7 @@ export function registerSheetTool(registry: ToolRegistry): void {
 
       log.info(`append: token=${token}, range=${range}, rows=${p.values?.length}`);
 
-      const Lark = await import('@larksuiteoapi/node-sdk');
-      const opts = Lark.withUserAccessToken(accessToken);
+      const opts = await withUserAccessToken(accessToken);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const res = await (larkClient!.sdk as any).request(
@@ -375,14 +349,13 @@ export function registerSheetTool(registry: ToolRegistry): void {
       const p = args as z.infer<ReturnType<typeof z.object<typeof createActionSchema>>>;
       const { larkClient } = context;
 
-      const tokenResult = await getAccessToken(context);
-      if (typeof tokenResult === 'object' && 'content' in tokenResult) return tokenResult;
+      const tokenResult = await getToolAccessToken(context);
+      if (isToolResult(tokenResult)) return tokenResult;
       const accessToken = tokenResult;
 
       log.info(`create: title=${p.title}, folder=${p.folder_token ?? '(root)'}`);
 
-      const Lark = await import('@larksuiteoapi/node-sdk');
-      const opts = Lark.withUserAccessToken(accessToken);
+      const opts = await withUserAccessToken(accessToken);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const data: any = { title: p.title };

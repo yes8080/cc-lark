@@ -19,85 +19,16 @@
 import { z } from 'zod';
 import type { ToolRegistry } from '../index.js';
 import { LarkClient } from '../../core/lark-client.js';
-import { getValidAccessToken, NeedAuthorizationError } from '../../core/uat-client.js';
+import { getToolAccessToken, isToolResult, withUserAccessToken } from '../common/auth-helper.js';
 import { assertLarkOk } from '../../core/api-error.js';
-import { json, jsonError, type ToolResult } from '../im/helpers.js';
+import { json, jsonError, type ToolResult } from '../common/helpers.js';
+import {
+  parseTimeToTimestamp,
+  unixTimestampToISO8601,
+} from '../im/time-utils.js';
 import { logger } from '../../utils/logger.js';
 
 const log = logger('tools:calendar:event');
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Parse time string to Unix timestamp (seconds).
- * Supports ISO 8601 with timezone or Beijing time (UTC+8) without timezone.
- */
-function parseTimeToTimestamp(input: string): string | null {
-  try {
-    const trimmed = input.trim();
-    const hasTimezone = /[Zz]$|[+-]\d{2}:\d{2}$/.test(trimmed);
-
-    if (hasTimezone) {
-      const date = new Date(trimmed);
-      if (isNaN(date.getTime())) return null;
-      return Math.floor(date.getTime() / 1000).toString();
-    }
-
-    // No timezone - treat as Beijing time (UTC+8)
-    const normalized = trimmed.replace('T', ' ');
-    const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?$/);
-
-    if (!match) {
-      const date = new Date(trimmed);
-      if (isNaN(date.getTime())) return null;
-      return Math.floor(date.getTime() / 1000).toString();
-    }
-
-    const [, year, month, day, hour, minute, second] = match;
-    const utcDate = new Date(
-      Date.UTC(
-        parseInt(year),
-        parseInt(month) - 1,
-        parseInt(day),
-        parseInt(hour) - 8, // Beijing time - 8 hours = UTC
-        parseInt(minute),
-        parseInt(second ?? '0')
-      )
-    );
-
-    return Math.floor(utcDate.getTime() / 1000).toString();
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Convert Unix timestamp to ISO 8601 string in Shanghai timezone.
- */
-function unixTimestampToISO8601(raw: string | number | undefined): string | null {
-  if (raw === undefined || raw === null) return null;
-
-  const text = typeof raw === 'number' ? String(raw) : String(raw).trim();
-  if (!/^-?\d+$/.test(text)) return null;
-
-  const num = Number(text);
-  if (!Number.isFinite(num)) return null;
-
-  const utcMs = Math.abs(num) >= 1e12 ? num : num * 1000;
-  const beijingDate = new Date(utcMs + 8 * 60 * 60 * 1000);
-  if (Number.isNaN(beijingDate.getTime())) return null;
-
-  const year = beijingDate.getUTCFullYear();
-  const month = String(beijingDate.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(beijingDate.getUTCDate()).padStart(2, '0');
-  const hour = String(beijingDate.getUTCHours()).padStart(2, '0');
-  const minute = String(beijingDate.getUTCMinutes()).padStart(2, '0');
-  const second = String(beijingDate.getUTCSeconds()).padStart(2, '0');
-
-  return `${year}-${month}-${day}T${hour}:${minute}:${second}+08:00`;
-}
 
 // ---------------------------------------------------------------------------
 // Input schemas
@@ -264,46 +195,6 @@ export function registerCalendarEventTool(registry: ToolRegistry): void {
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function getAccessToken(context: {
-  larkClient: LarkClient | null;
-  config: import('../../core/types.js').FeishuConfig;
-}): Promise<string | ToolResult> {
-  const { larkClient, config } = context;
-  if (!larkClient) {
-    return jsonError('LarkClient not initialized. Check FEISHU_APP_ID and FEISHU_APP_SECRET.');
-  }
-  const { appId, appSecret, brand } = config;
-  if (!appId || !appSecret) {
-    return jsonError('Missing FEISHU_APP_ID or FEISHU_APP_SECRET.');
-  }
-
-  const { listStoredTokens } = await import('../../core/token-store.js');
-  const tokens = await listStoredTokens(appId);
-  if (tokens.length === 0) {
-    return jsonError(
-      'No user authorization found. Please use the feishu_oauth tool with action="authorize" to authorize a user first.'
-    );
-  }
-
-  const userOpenId = tokens[0].userOpenId;
-
-  try {
-    return await getValidAccessToken({
-      userOpenId,
-      appId,
-      appSecret,
-      domain: brand ?? 'feishu',
-    });
-  } catch (err) {
-    if (err instanceof NeedAuthorizationError) {
-      return jsonError(
-        `User authorization required or expired. Please use feishu_oauth tool with action="authorize" to re-authorize.`,
-        { userOpenId }
-      );
-    }
-    throw err;
-  }
-}
 
 async function resolveCalendarId(
   calendarId: string | undefined,
@@ -312,8 +203,7 @@ async function resolveCalendarId(
 ): Promise<string> {
   if (calendarId) return calendarId;
 
-  const Lark = await import('@larksuiteoapi/node-sdk');
-  const opts = Lark.withUserAccessToken(accessToken);
+  const opts = await withUserAccessToken(accessToken);
 
   const res = await larkClient.sdk.calendar.calendar.primary({}, opts);
   assertLarkOk(res);
@@ -383,10 +273,8 @@ async function handleCreate(
     );
   }
 
-  const accessTokenResult = await getAccessToken(context);
-  if (typeof accessTokenResult === 'object' && 'content' in accessTokenResult) {
-    return accessTokenResult;
-  }
+  const accessTokenResult = await getToolAccessToken(context);
+  if (isToolResult(accessTokenResult)) return accessTokenResult;
   const accessToken = accessTokenResult;
 
   const calendarId = await resolveCalendarId(p.calendar_id, larkClient!, accessToken);
@@ -395,8 +283,7 @@ async function handleCreate(
     `create: summary=${p.summary ?? '(none)'}, start_time=${startTs}, end_time=${endTs}, calendar_id=${calendarId}`
   );
 
-  const Lark = await import('@larksuiteoapi/node-sdk');
-  const opts = Lark.withUserAccessToken(accessToken);
+  const opts = await withUserAccessToken(accessToken);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const eventData: any = {
@@ -446,18 +333,15 @@ async function handleList(
     );
   }
 
-  const accessTokenResult = await getAccessToken(context);
-  if (typeof accessTokenResult === 'object' && 'content' in accessTokenResult) {
-    return accessTokenResult;
-  }
+  const accessTokenResult = await getToolAccessToken(context);
+  if (isToolResult(accessTokenResult)) return accessTokenResult;
   const accessToken = accessTokenResult;
 
   const calendarId = await resolveCalendarId(p.calendar_id, larkClient!, accessToken);
 
   log.info(`list: calendar_id=${calendarId}, start_time=${startTs}, end_time=${endTs}`);
 
-  const Lark = await import('@larksuiteoapi/node-sdk');
-  const opts = Lark.withUserAccessToken(accessToken);
+  const opts = await withUserAccessToken(accessToken);
 
   const res = await larkClient!.sdk.calendar.calendarEvent.instanceView(
     {
@@ -500,18 +384,15 @@ async function handleGet(
     return jsonError('event_id is required');
   }
 
-  const accessTokenResult = await getAccessToken(context);
-  if (typeof accessTokenResult === 'object' && 'content' in accessTokenResult) {
-    return accessTokenResult;
-  }
+  const accessTokenResult = await getToolAccessToken(context);
+  if (isToolResult(accessTokenResult)) return accessTokenResult;
   const accessToken = accessTokenResult;
 
   const calendarId = await resolveCalendarId(p.calendar_id, larkClient!, accessToken);
 
   log.info(`get: calendar_id=${calendarId}, event_id=${p.event_id}`);
 
-  const Lark = await import('@larksuiteoapi/node-sdk');
-  const opts = Lark.withUserAccessToken(accessToken);
+  const opts = await withUserAccessToken(accessToken);
 
   const res = await larkClient!.sdk.calendar.calendarEvent.get(
     {
@@ -539,10 +420,8 @@ async function handlePatch(
     return jsonError('event_id is required');
   }
 
-  const accessTokenResult = await getAccessToken(context);
-  if (typeof accessTokenResult === 'object' && 'content' in accessTokenResult) {
-    return accessTokenResult;
-  }
+  const accessTokenResult = await getToolAccessToken(context);
+  if (isToolResult(accessTokenResult)) return accessTokenResult;
   const accessToken = accessTokenResult;
 
   const calendarId = await resolveCalendarId(p.calendar_id, larkClient!, accessToken);
@@ -577,8 +456,7 @@ async function handlePatch(
     `patch: calendar_id=${calendarId}, event_id=${p.event_id}, fields=${Object.keys(updateData).join(',')}`
   );
 
-  const Lark = await import('@larksuiteoapi/node-sdk');
-  const opts = Lark.withUserAccessToken(accessToken);
+  const opts = await withUserAccessToken(accessToken);
 
   const res = await larkClient!.sdk.calendar.calendarEvent.patch(
     {
@@ -607,10 +485,8 @@ async function handleDelete(
     return jsonError('event_id is required');
   }
 
-  const accessTokenResult = await getAccessToken(context);
-  if (typeof accessTokenResult === 'object' && 'content' in accessTokenResult) {
-    return accessTokenResult;
-  }
+  const accessTokenResult = await getToolAccessToken(context);
+  if (isToolResult(accessTokenResult)) return accessTokenResult;
   const accessToken = accessTokenResult;
 
   const calendarId = await resolveCalendarId(p.calendar_id, larkClient!, accessToken);
@@ -619,8 +495,7 @@ async function handleDelete(
     `delete: calendar_id=${calendarId}, event_id=${p.event_id}, notify=${p.need_notification ?? true}`
   );
 
-  const Lark = await import('@larksuiteoapi/node-sdk');
-  const opts = Lark.withUserAccessToken(accessToken);
+  const opts = await withUserAccessToken(accessToken);
 
   const res = await larkClient!.sdk.calendar.calendarEvent.delete(
     {
