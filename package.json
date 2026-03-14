@@ -9,6 +9,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "start": "node dist/index.js",
     "dev": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -24,16 +25,22 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "typescript": "^5.9.3",
-    "vitest": "^2.0.0",
-    "eslint": "^9.0.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
-    "prettier": "^3.0.0"
+    "eslint": "^9.0.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.57.0",
+    "vitest": "^2.0.0"
   },
   "engines": {
     "node": ">=22.0.0"
   },
-  "keywords": ["feishu", "lark", "mcp", "claude-code"],
+  "keywords": [
+    "feishu",
+    "lark",
+    "mcp",
+    "claude-code"
+  ],
   "license": "MIT"
 }

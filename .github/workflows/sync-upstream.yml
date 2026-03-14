@@ -1,0 +1,127 @@
+name: Sync Upstream
+
+on:
+  schedule:
+    # Run daily at 00:00 UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    # Allow manual trigger
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Git
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/larksuite/openclaw-lark || true
+          git fetch upstream
+
+      - name: Check for changes in core
+        id: check-core
+        run: |
+          # Core directories/files that we sync from upstream
+          SYNC_PATHS=(
+            "src/core/lark-client.ts"
+            "src/core/device-flow.ts"
+            "src/core/token-store.ts"
+            "src/core/uat-client.ts"
+            "src/core/api-error.ts"
+            "src/core/auth-errors.ts"
+            "src/tools/oapi/im"
+            "src/tools/oapi/bitable"
+            "src/tools/oapi/calendar"
+            "src/tools/oapi/task"
+            "src/tools/oapi/drive"
+            "src/tools/oapi/wiki"
+            "src/tools/oapi/sheets"
+            "src/tools/oapi/search"
+            "src/tools/oapi/chat"
+            "src/tools/oapi/common"
+            "src/tools/mcp/doc"
+            "src/tools/oauth.ts"
+            "skills"
+          )
+
+          CHANGES_FOUND=false
+          for path in "${SYNC_PATHS[@]}"; do
+            if git diff --quiet HEAD "upstream/main" -- "$path" 2>/dev/null; then
+              echo "No changes in $path"
+            else
+              echo "Changes detected in $path"
+              CHANGES_FOUND=true
+            fi
+          done
+
+          echo "has_changes=$CHANGES_FOUND" >> $GITHUB_OUTPUT
+
+      - name: Create sync branch
+        if: steps.check-core.outputs.has_changes == 'true'
+        run: |
+          SYNC_BRANCH="sync-upstream-$(date +%Y%m%d-%H%M%S)"
+          echo "SYNC_BRANCH=$SYNC_BRANCH" >> $GITHUB_ENV
+          git checkout -b "$SYNC_BRANCH"
+
+      - name: Sync files from upstream
+        if: steps.check-core.outputs.has_changes == 'true'
+        run: |
+          # Sync core files (adapted for MCP Server architecture)
+          # Note: These files may need manual adaptation after sync
+
+          # Sync skills directory
+          git checkout upstream/main -- skills/ || true
+
+          # Note: src/core and src/tools need careful review
+          # as they have been adapted for MCP Server architecture
+          # The following files are synced but may need conflict resolution:
+          # - src/core/lark-client.ts
+          # - src/core/device-flow.ts
+          # - src/core/token-store.ts
+          # - src/tools/oapi/*
+
+          git add -A || true
+          git commit -m "chore: sync upstream changes from openclaw-lark" || echo "No changes to commit"
+
+      - name: Create Pull Request
+        if: steps.check-core.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: ${{ env.SYNC_BRANCH }}
+          title: 'chore: sync upstream openclaw-lark changes'
+          body: |
+            ## Upstream Sync
+
+            This PR syncs changes from [openclaw-lark](https://github.com/larksuite/openclaw-lark).
+
+            ### Changed Areas
+            - Skills documentation
+            - Core modules (may need manual review)
+            - Tools (may need manual review)
+
+            **Note:** Please review the changes carefully before merging.
+            Some files may need manual adaptation for MCP Server architecture.
+
+            ### Checklist
+            - [ ] Review all changes
+            - [ ] Run tests locally: `npm test`
+            - [ ] Check for API changes that need adaptation
+          labels: |
+            upstream-sync
+            automated
+          draft: false
+
+      - name: No changes detected
+        if: steps.check-core.outputs.has_changes != 'true'
+        run: |
+          echo "No upstream changes detected. All synced!"

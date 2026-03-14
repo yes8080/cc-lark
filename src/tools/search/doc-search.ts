@@ -1,0 +1,250 @@
+/**
+ * Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
+ * SPDX-License-Identifier: MIT
+ *
+ * feishu_search_doc_wiki tool - Search Feishu documents and wikis.
+ */
+
+import { z } from 'zod';
+import type { ToolRegistry } from '../index.js';
+import { LarkClient } from '../../core/lark-client.js';
+import { getValidAccessToken, NeedAuthorizationError } from '../../core/uat-client.js';
+import { json, jsonError, type ToolResult } from '../im/helpers.js';
+import { logger } from '../../utils/logger.js';
+
+const log = logger('tools:search:doc-wiki');
+
+/**
+ * Convert Unix timestamp to ISO 8601 in Shanghai timezone.
+ */
+function unixTimestampToISO8601(raw: string | number | undefined): string | null {
+  if (raw === undefined || raw === null) return null;
+  const text = typeof raw === 'number' ? String(raw) : String(raw).trim();
+  if (!/^-?\d+$/.test(text)) return null;
+
+  const num = Number(text);
+  if (!Number.isFinite(num)) return null;
+
+  const utcMs = Math.abs(num) >= 1e12 ? num : num * 1000;
+  const beijingDate = new Date(utcMs + 8 * 60 * 60 * 1000);
+  if (Number.isNaN(beijingDate.getTime())) return null;
+
+  const year = beijingDate.getUTCFullYear();
+  const month = String(beijingDate.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(beijingDate.getUTCDate()).padStart(2, '0');
+  const hour = String(beijingDate.getUTCHours()).padStart(2, '0');
+  const minute = String(beijingDate.getUTCMinutes()).padStart(2, '0');
+  const second = String(beijingDate.getUTCSeconds()).padStart(2, '0');
+
+  return `${year}-${month}-${day}T${hour}:${minute}:${second}+08:00`;
+}
+
+/**
+ * Parse time string to Unix timestamp (seconds).
+ */
+function parseTimeToTimestamp(input: string): number | undefined {
+  try {
+    const trimmed = input.trim();
+    const hasTimezone = /[Zz]$|[+-]\d{2}:\d{2}$/.test(trimmed);
+
+    if (hasTimezone) {
+      const date = new Date(trimmed);
+      if (isNaN(date.getTime())) return undefined;
+      return Math.floor(date.getTime() / 1000);
+    }
+
+    const normalized = trimmed.replace('T', ' ');
+    const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?$/);
+
+    if (!match) {
+      const date = new Date(trimmed);
+      if (isNaN(date.getTime())) return undefined;
+      return Math.floor(date.getTime() / 1000);
+    }
+
+    const [, year, month, day, hour, minute, second] = match;
+    const utcDate = new Date(
+      Date.UTC(
+        parseInt(year),
+        parseInt(month) - 1,
+        parseInt(day),
+        parseInt(hour) - 8,
+        parseInt(minute),
+        parseInt(second ?? '0'),
+      ),
+    );
+
+    return Math.floor(utcDate.getTime() / 1000);
+  } catch {
+    return undefined;
+  }
+}
+
+// Schemas
+const docTypeEnum = z.enum(['DOC', 'SHEET', 'BITABLE', 'MINDNOTE', 'FILE', 'WIKI', 'DOCX', 'FOLDER', 'CATALOG', 'SLIDES', 'SHORTCUT']);
+
+const timeRangeSchema = z.object({
+  start: z.string().optional().describe('Start time (ISO 8601 with timezone)'),
+  end: z.string().optional().describe('End time (ISO 8601 with timezone)'),
+});
+
+const filterSchema = z.object({
+  creator_ids: z.array(z.string()).max(20).optional().describe('Creator OpenIDs (max 20)'),
+  doc_types: z.array(docTypeEnum).max(10).optional().describe('Document types'),
+  only_title: z.boolean().optional().describe('Search title only (default: false)'),
+  open_time: timeRangeSchema.optional().describe('Open time range'),
+  create_time: timeRangeSchema.optional().describe('Create time range'),
+}).optional();
+
+const searchActionSchema = {
+  action: z.literal('search').describe('Search documents and wikis'),
+  query: z.string().max(50).optional().describe('Search query (optional, empty string for all)'),
+  filter: filterSchema,
+  page_size: z.number().min(1).max(20).optional().describe('Page size (default 15)'),
+  page_token: z.string().optional().describe('Pagination token'),
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalizeSearchResultTimeFields<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeSearchResultTimeFields(item)) as T;
+  }
+
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  const source = value as Record<string, unknown>;
+  const normalized: Record<string, unknown> = {};
+
+  for (const [key, item] of Object.entries(source)) {
+    if (key.endsWith('_time')) {
+      const iso = unixTimestampToISO8601(item as string | number | undefined);
+      if (iso) {
+        normalized[key] = iso;
+        continue;
+      }
+    }
+    normalized[key] = normalizeSearchResultTimeFields(item);
+  }
+
+  return normalized as T;
+}
+
+async function getAccessToken(context: { larkClient: LarkClient | null; config: import('../../core/types.js').FeishuConfig }): Promise<string | ToolResult> {
+  const { larkClient, config } = context;
+  if (!larkClient) return jsonError('LarkClient not initialized.');
+  const { appId, appSecret, brand } = config;
+  if (!appId || !appSecret) return jsonError('Missing FEISHU_APP_ID or FEISHU_APP_SECRET.');
+
+  const { listStoredTokens } = await import('../../core/token-store.js');
+  const tokens = await listStoredTokens(appId);
+  if (tokens.length === 0) return jsonError('No user authorization found.');
+  const userOpenId = tokens[0].userOpenId;
+
+  try {
+    return await getValidAccessToken({ userOpenId, appId, appSecret, domain: brand ?? 'feishu' });
+  } catch (err) {
+    if (err instanceof NeedAuthorizationError) return jsonError('User authorization expired.');
+    throw err;
+  }
+}
+
+export function registerSearchDocWikiTool(registry: ToolRegistry): void {
+  registry.register({
+    name: 'feishu_search_doc_wiki',
+    description: 'Search Feishu documents and wikis.\n\nRequires OAuth authorization.',
+    inputSchema: searchActionSchema,
+    handler: async (args, context) => {
+      const p = args as z.infer<ReturnType<typeof z.object<typeof searchActionSchema>>>;
+      const { larkClient } = context;
+
+      const tokenResult = await getAccessToken(context);
+      if (typeof tokenResult === 'object' && 'content' in tokenResult) return tokenResult;
+      const accessToken = tokenResult;
+
+      const query = p.query ?? '';
+      log.info(`search: query="${query}", has_filter=${!!p.filter}, page_size=${p.page_size ?? 15}`);
+
+      const Lark = await import('@larksuiteoapi/node-sdk');
+      const opts = Lark.withUserAccessToken(accessToken);
+
+      // Build request body
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const requestData: any = {
+        query,
+        page_size: p.page_size,
+        page_token: p.page_token,
+      };
+
+      if (p.filter) {
+        const filter = { ...p.filter };
+
+        // Convert time ranges
+        if (filter.open_time) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const converted: any = {};
+          if (filter.open_time.start) {
+            const ts = parseTimeToTimestamp(filter.open_time.start);
+            if (ts !== undefined) converted.start = ts;
+          }
+          if (filter.open_time.end) {
+            const ts = parseTimeToTimestamp(filter.open_time.end);
+            if (ts !== undefined) converted.end = ts;
+          }
+          filter.open_time = converted;
+        }
+        if (filter.create_time) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const converted: any = {};
+          if (filter.create_time.start) {
+            const ts = parseTimeToTimestamp(filter.create_time.start);
+            if (ts !== undefined) converted.start = ts;
+          }
+          if (filter.create_time.end) {
+            const ts = parseTimeToTimestamp(filter.create_time.end);
+            if (ts !== undefined) converted.end = ts;
+          }
+          filter.create_time = converted;
+        }
+
+        requestData.doc_filter = filter;
+        requestData.wiki_filter = filter;
+      } else {
+        requestData.doc_filter = {};
+        requestData.wiki_filter = {};
+      }
+
+      // Use direct request since SDK doesn't have search API
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const res = await (larkClient!.sdk as any).request({
+        method: 'POST',
+        url: '/open-apis/search/v2/doc_wiki/search',
+        data: requestData,
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json; charset=utf-8',
+        },
+      }, opts);
+
+      // Check for API error - response might have code directly or wrapped
+      if ((res as any).code !== undefined && (res as any).code !== 0) {
+        return jsonError(`API Error: code=${(res as any).code}, msg=${(res as any).msg}`);
+      }
+
+      const data = res.data || {};
+
+      log.info(`search: found ${data.res_units?.length ?? 0} results`);
+      const normalizedResults = normalizeSearchResultTimeFields(data.res_units);
+
+      return json({
+        total: data.total,
+        has_more: data.has_more,
+        results: normalizedResults,
+        page_token: data.page_token,
+      });
+    },
+  });
+
+  log.debug('feishu_search_doc_wiki tools registered');
+}
