@@ -18,6 +18,12 @@ const log = logger('tools:doc:shared');
 // Types
 // ---------------------------------------------------------------------------
 
+// Re-export shared types and helpers
+export { json, jsonError, type ToolResult } from '../common/helpers.js';
+
+// Import locally for use in this file
+import { json, type ToolResult } from '../common/helpers.js';
+
 /** MCP JSON-RPC success response */
 export interface McpRpcSuccess {
   jsonrpc: '2.0';
@@ -33,12 +39,6 @@ export interface McpRpcError {
 }
 
 export type McpRpcResponse = McpRpcSuccess | McpRpcError;
-
-/** Tool result type that matches MCP SDK expectations. */
-export type ToolResult = {
-  content: Array<{ type: 'text'; text: string }>;
-  isError?: boolean;
-};
 
 // ---------------------------------------------------------------------------
 // MCP endpoint configuration
@@ -177,25 +177,6 @@ export async function callMcpTool(
 // ---------------------------------------------------------------------------
 // Result formatting
 // ---------------------------------------------------------------------------
-
-/**
- * Format a successful tool result.
- */
-export function json(data: unknown): ToolResult {
-  return {
-    content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
-  };
-}
-
-/**
- * Format an error tool result.
- */
-export function jsonError(message: string, details?: unknown): ToolResult {
-  return {
-    content: [{ type: 'text', text: JSON.stringify({ error: message, details }, null, 2) }],
-    isError: true,
-  };
-}
 
 /**
  * Process MCP tool result into MCP content format.

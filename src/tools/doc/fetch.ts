@@ -12,8 +12,7 @@
 
 import { z } from 'zod';
 import type { ToolRegistry } from '../index.js';
-import { LarkClient } from '../../core/lark-client.js';
-import { getValidAccessToken, NeedAuthorizationError } from '../../core/uat-client.js';
+import { getToolAccessToken, isToolResult } from '../common/auth-helper.js';
 import { callMcpTool, jsonError, processMcpResult, type ToolResult } from './shared.js';
 import { logger } from '../../utils/logger.js';
 
@@ -81,69 +80,34 @@ export function registerFetchDocTool(registry: ToolRegistry): void {
 
 async function handleFetchDoc(
   args: unknown,
-  context: { larkClient: LarkClient | null; config: import('../../core/types.js').FeishuConfig }
+  context: { larkClient: import('../../core/lark-client.js').LarkClient | null; config: import('../../core/types.js').FeishuConfig }
 ): Promise<ToolResult> {
   const p = args as Record<string, unknown>;
-  const { larkClient, config } = context;
 
-  if (!larkClient) {
-    return jsonError('LarkClient not initialized. Check FEISHU_APP_ID and FEISHU_APP_SECRET.');
-  }
+  const tokenResult = await getToolAccessToken(context);
+  if (isToolResult(tokenResult)) return tokenResult;
+  const accessToken = tokenResult;
 
-  const { appId, appSecret, brand } = config;
-  if (!appId || !appSecret) {
-    return jsonError('Missing FEISHU_APP_ID or FEISHU_APP_SECRET.');
-  }
+  log.info('Fetching document', {
+    doc_id: p.doc_id,
+    offset: p.offset,
+    limit: p.limit,
+  });
 
-  // Get the first stored user token
-  const { listStoredTokens } = await import('../../core/token-store.js');
-  const tokens = await listStoredTokens(appId);
-  if (tokens.length === 0) {
-    return jsonError(
-      'No user authorization found. Please use the feishu_oauth tool with action="authorize" to authorize a user first.'
-    );
-  }
+  // Build MCP tool arguments
+  const mcpArgs: Record<string, unknown> = {
+    doc_id: p.doc_id,
+  };
+  if (p.offset !== undefined) mcpArgs.offset = p.offset;
+  if (p.limit !== undefined) mcpArgs.limit = p.limit;
 
-  const userOpenId = tokens[0].userOpenId;
+  // Generate a unique tool call ID
+  const toolCallId = `fetch-doc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-  try {
-    const accessToken = await getValidAccessToken({
-      userOpenId,
-      appId,
-      appSecret,
-      domain: brand ?? 'feishu',
-    });
+  // Call the MCP endpoint
+  const result = await callMcpTool('fetch-doc', mcpArgs, toolCallId, accessToken);
 
-    log.info('Fetching document', {
-      doc_id: p.doc_id,
-      offset: p.offset,
-      limit: p.limit,
-    });
+  log.info('Document fetched');
 
-    // Build MCP tool arguments
-    const mcpArgs: Record<string, unknown> = {
-      doc_id: p.doc_id,
-    };
-    if (p.offset !== undefined) mcpArgs.offset = p.offset;
-    if (p.limit !== undefined) mcpArgs.limit = p.limit;
-
-    // Generate a unique tool call ID
-    const toolCallId = `fetch-doc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-    // Call the MCP endpoint
-    const result = await callMcpTool('fetch-doc', mcpArgs, toolCallId, accessToken);
-
-    log.info('Document fetched');
-
-    return processMcpResult(result);
-  } catch (err) {
-    if (err instanceof NeedAuthorizationError) {
-      return jsonError(
-        `User authorization required or expired. Please use feishu_oauth tool with action="authorize" to re-authorize.`,
-        { userOpenId }
-      );
-    }
-    log.error('Fetch document failed', { error: err instanceof Error ? err.message : String(err) });
-    return jsonError(err instanceof Error ? err.message : String(err));
-  }
+  return processMcpResult(result);
 }

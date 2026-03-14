@@ -20,8 +20,7 @@
 
 import { z } from 'zod';
 import type { ToolRegistry } from '../index.js';
-import { LarkClient } from '../../core/lark-client.js';
-import { getValidAccessToken, NeedAuthorizationError } from '../../core/uat-client.js';
+import { getToolAccessToken, isToolResult } from '../common/auth-helper.js';
 import { callMcpTool, jsonError, processMcpResult, type ToolResult } from './shared.js';
 import { logger } from '../../utils/logger.js';
 
@@ -159,19 +158,9 @@ export function registerUpdateDocTool(registry: ToolRegistry): void {
 
 async function handleUpdateDoc(
   args: unknown,
-  context: { larkClient: LarkClient | null; config: import('../../core/types.js').FeishuConfig }
+  context: { larkClient: import('../../core/lark-client.js').LarkClient | null; config: import('../../core/types.js').FeishuConfig }
 ): Promise<ToolResult> {
   const p = args as Record<string, unknown>;
-  const { larkClient, config } = context;
-
-  if (!larkClient) {
-    return jsonError('LarkClient not initialized. Check FEISHU_APP_ID and FEISHU_APP_SECRET.');
-  }
-
-  const { appId, appSecret, brand } = config;
-  if (!appId || !appSecret) {
-    return jsonError('Missing FEISHU_APP_ID or FEISHU_APP_SECRET.');
-  }
 
   // Validate parameters
   try {
@@ -180,64 +169,37 @@ async function handleUpdateDoc(
     return jsonError(err instanceof Error ? err.message : String(err));
   }
 
-  // Get the first stored user token
-  const { listStoredTokens } = await import('../../core/token-store.js');
-  const tokens = await listStoredTokens(appId);
-  if (tokens.length === 0) {
-    return jsonError(
-      'No user authorization found. Please use the feishu_oauth tool with action="authorize" to authorize a user first.'
-    );
-  }
+  const tokenResult = await getToolAccessToken(context);
+  if (isToolResult(tokenResult)) return tokenResult;
+  const accessToken = tokenResult;
 
-  const userOpenId = tokens[0].userOpenId;
+  log.info('Updating document', {
+    doc_id: p.doc_id,
+    mode: p.mode,
+    has_markdown: !!p.markdown,
+    selection_with_ellipsis: p.selection_with_ellipsis ? '(provided)' : undefined,
+    selection_by_title: p.selection_by_title,
+    new_title: p.new_title,
+    task_id: p.task_id,
+  });
 
-  try {
-    const accessToken = await getValidAccessToken({
-      userOpenId,
-      appId,
-      appSecret,
-      domain: brand ?? 'feishu',
-    });
+  // Build MCP tool arguments
+  const mcpArgs: Record<string, unknown> = {};
+  if (p.doc_id) mcpArgs.doc_id = p.doc_id;
+  if (p.markdown) mcpArgs.markdown = p.markdown;
+  if (p.mode) mcpArgs.mode = p.mode;
+  if (p.selection_with_ellipsis) mcpArgs.selection_with_ellipsis = p.selection_with_ellipsis;
+  if (p.selection_by_title) mcpArgs.selection_by_title = p.selection_by_title;
+  if (p.new_title) mcpArgs.new_title = p.new_title;
+  if (p.task_id) mcpArgs.task_id = p.task_id;
 
-    log.info('Updating document', {
-      doc_id: p.doc_id,
-      mode: p.mode,
-      has_markdown: !!p.markdown,
-      selection_with_ellipsis: p.selection_with_ellipsis ? '(provided)' : undefined,
-      selection_by_title: p.selection_by_title,
-      new_title: p.new_title,
-      task_id: p.task_id,
-    });
+  // Generate a unique tool call ID
+  const toolCallId = `update-doc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-    // Build MCP tool arguments
-    const mcpArgs: Record<string, unknown> = {};
-    if (p.doc_id) mcpArgs.doc_id = p.doc_id;
-    if (p.markdown) mcpArgs.markdown = p.markdown;
-    if (p.mode) mcpArgs.mode = p.mode;
-    if (p.selection_with_ellipsis) mcpArgs.selection_with_ellipsis = p.selection_with_ellipsis;
-    if (p.selection_by_title) mcpArgs.selection_by_title = p.selection_by_title;
-    if (p.new_title) mcpArgs.new_title = p.new_title;
-    if (p.task_id) mcpArgs.task_id = p.task_id;
+  // Call the MCP endpoint
+  const result = await callMcpTool('update-doc', mcpArgs, toolCallId, accessToken);
 
-    // Generate a unique tool call ID
-    const toolCallId = `update-doc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  log.info('Document updated/task queried');
 
-    // Call the MCP endpoint
-    const result = await callMcpTool('update-doc', mcpArgs, toolCallId, accessToken);
-
-    log.info('Document updated/task queried');
-
-    return processMcpResult(result);
-  } catch (err) {
-    if (err instanceof NeedAuthorizationError) {
-      return jsonError(
-        `User authorization required or expired. Please use feishu_oauth tool with action="authorize" to re-authorize.`,
-        { userOpenId }
-      );
-    }
-    log.error('Update document failed', {
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return jsonError(err instanceof Error ? err.message : String(err));
-  }
+  return processMcpResult(result);
 }
