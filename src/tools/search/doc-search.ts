@@ -8,9 +8,8 @@
 
 import { z } from 'zod';
 import type { ToolRegistry } from '../index.js';
-import { LarkClient } from '../../core/lark-client.js';
-import { getValidAccessToken, NeedAuthorizationError } from '../../core/uat-client.js';
-import { json, jsonError, type ToolResult } from '../im/helpers.js';
+import { getToolAccessToken, isToolResult, withUserAccessToken } from '../common/auth-helper.js';
+import { json, jsonError } from '../common/helpers.js';
 import { logger } from '../../utils/logger.js';
 
 const log = logger('tools:search:doc-wiki');
@@ -145,27 +144,6 @@ function normalizeSearchResultTimeFields<T>(value: T): T {
   return normalized as T;
 }
 
-async function getAccessToken(context: {
-  larkClient: LarkClient | null;
-  config: import('../../core/types.js').FeishuConfig;
-}): Promise<string | ToolResult> {
-  const { larkClient, config } = context;
-  if (!larkClient) return jsonError('LarkClient not initialized.');
-  const { appId, appSecret, brand } = config;
-  if (!appId || !appSecret) return jsonError('Missing FEISHU_APP_ID or FEISHU_APP_SECRET.');
-
-  const { listStoredTokens } = await import('../../core/token-store.js');
-  const tokens = await listStoredTokens(appId);
-  if (tokens.length === 0) return jsonError('No user authorization found.');
-  const userOpenId = tokens[0].userOpenId;
-
-  try {
-    return await getValidAccessToken({ userOpenId, appId, appSecret, domain: brand ?? 'feishu' });
-  } catch (err) {
-    if (err instanceof NeedAuthorizationError) return jsonError('User authorization expired.');
-    throw err;
-  }
-}
 
 export function registerSearchDocWikiTool(registry: ToolRegistry): void {
   registry.register({
@@ -176,8 +154,8 @@ export function registerSearchDocWikiTool(registry: ToolRegistry): void {
       const p = args as z.infer<ReturnType<typeof z.object<typeof searchActionSchema>>>;
       const { larkClient } = context;
 
-      const tokenResult = await getAccessToken(context);
-      if (typeof tokenResult === 'object' && 'content' in tokenResult) return tokenResult;
+      const tokenResult = await getToolAccessToken(context);
+      if (isToolResult(tokenResult)) return tokenResult;
       const accessToken = tokenResult;
 
       const query = p.query ?? '';
@@ -185,8 +163,7 @@ export function registerSearchDocWikiTool(registry: ToolRegistry): void {
         `search: query="${query}", has_filter=${!!p.filter}, page_size=${p.page_size ?? 15}`
       );
 
-      const Lark = await import('@larksuiteoapi/node-sdk');
-      const opts = Lark.withUserAccessToken(accessToken);
+      const opts = await withUserAccessToken(accessToken);
 
       // Build request body
 

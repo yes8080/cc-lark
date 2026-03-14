@@ -9,9 +9,8 @@
 
 import { z } from 'zod';
 import type { ToolRegistry } from '../index.js';
-import { LarkClient } from '../../core/lark-client.js';
-import { getValidAccessToken, NeedAuthorizationError } from '../../core/uat-client.js';
-import { json, jsonError, type ToolResult } from '../im/helpers.js';
+import { getToolAccessToken, isToolResult, withUserAccessToken } from './auth-helper.js';
+import { json, jsonError } from './helpers.js';
 import { logger } from '../../utils/logger.js';
 
 const log = logger('tools:common:get-user');
@@ -28,27 +27,6 @@ const getUserSchema = {
     .describe('User ID type (default: open_id)'),
 };
 
-async function getAccessToken(context: {
-  larkClient: LarkClient | null;
-  config: import('../../core/types.js').FeishuConfig;
-}): Promise<string | ToolResult> {
-  const { larkClient, config } = context;
-  if (!larkClient) return jsonError('LarkClient not initialized.');
-  const { appId, appSecret, brand } = config;
-  if (!appId || !appSecret) return jsonError('Missing FEISHU_APP_ID or FEISHU_APP_SECRET.');
-
-  const { listStoredTokens } = await import('../../core/token-store.js');
-  const tokens = await listStoredTokens(appId);
-  if (tokens.length === 0) return jsonError('No user authorization found.');
-  const userOpenId = tokens[0].userOpenId;
-
-  try {
-    return await getValidAccessToken({ userOpenId, appId, appSecret, domain: brand ?? 'feishu' });
-  } catch (err) {
-    if (err instanceof NeedAuthorizationError) return jsonError('User authorization expired.');
-    throw err;
-  }
-}
 
 export function registerGetUserTool(registry: ToolRegistry): void {
   registry.register({
@@ -60,12 +38,11 @@ export function registerGetUserTool(registry: ToolRegistry): void {
       const p = args as z.infer<ReturnType<typeof z.object<typeof getUserSchema>>>;
       const { larkClient } = context;
 
-      const tokenResult = await getAccessToken(context);
-      if (typeof tokenResult === 'object' && 'content' in tokenResult) return tokenResult;
+      const tokenResult = await getToolAccessToken(context);
+      if (isToolResult(tokenResult)) return tokenResult;
       const accessToken = tokenResult;
 
-      const Lark = await import('@larksuiteoapi/node-sdk');
-      const opts = Lark.withUserAccessToken(accessToken);
+      const opts = await withUserAccessToken(accessToken);
 
       // If no user_id provided, get current user info
       if (!p.user_id) {

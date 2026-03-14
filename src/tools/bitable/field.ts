@@ -18,9 +18,9 @@
 import { z } from 'zod';
 import type { ToolRegistry } from '../index.js';
 import { LarkClient } from '../../core/lark-client.js';
-import { getValidAccessToken, NeedAuthorizationError } from '../../core/uat-client.js';
+import { getToolAccessToken, isToolResult, withUserAccessToken } from '../common/auth-helper.js';
 import { assertLarkOk } from '../../core/api-error.js';
-import { json, jsonError, type ToolResult } from '../im/helpers.js';
+import { json, jsonError, type ToolResult } from '../common/helpers.js';
 import { logger } from '../../utils/logger.js';
 
 const log = logger('tools:bitable:field');
@@ -166,46 +166,6 @@ export function registerBitableFieldTool(registry: ToolRegistry): void {
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function getAccessToken(context: {
-  larkClient: LarkClient | null;
-  config: import('../../core/types.js').FeishuConfig;
-}): Promise<string | ToolResult> {
-  const { larkClient, config } = context;
-  if (!larkClient) {
-    return jsonError('LarkClient not initialized. Check FEISHU_APP_ID and FEISHU_APP_SECRET.');
-  }
-  const { appId, appSecret, brand } = config;
-  if (!appId || !appSecret) {
-    return jsonError('Missing FEISHU_APP_ID or FEISHU_APP_SECRET.');
-  }
-
-  const { listStoredTokens } = await import('../../core/token-store.js');
-  const tokens = await listStoredTokens(appId);
-  if (tokens.length === 0) {
-    return jsonError(
-      'No user authorization found. Please use the feishu_oauth tool with action="authorize" to authorize a user first.'
-    );
-  }
-
-  const userOpenId = tokens[0].userOpenId;
-
-  try {
-    return await getValidAccessToken({
-      userOpenId,
-      appId,
-      appSecret,
-      domain: brand ?? 'feishu',
-    });
-  } catch (err) {
-    if (err instanceof NeedAuthorizationError) {
-      return jsonError(
-        `User authorization required or expired. Please use feishu_oauth tool with action="authorize" to re-authorize.`,
-        { userOpenId }
-      );
-    }
-    throw err;
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Handlers
@@ -218,18 +178,15 @@ async function handleCreate(
   const p = args as z.infer<ReturnType<typeof z.object<typeof createActionSchema>>>;
   const { larkClient } = context;
 
-  const accessTokenResult = await getAccessToken(context);
-  if (typeof accessTokenResult === 'object' && 'content' in accessTokenResult) {
-    return accessTokenResult;
-  }
+  const accessTokenResult = await getToolAccessToken(context);
+  if (isToolResult(accessTokenResult)) return accessTokenResult;
   const accessToken = accessTokenResult;
 
   log.info(
     `create: app_token=${p.app_token}, table_id=${p.table_id}, field_name=${p.field_name}, type=${p.type}`
   );
 
-  const Lark = await import('@larksuiteoapi/node-sdk');
-  const opts = Lark.withUserAccessToken(accessToken);
+  const opts = await withUserAccessToken(accessToken);
 
   // Handle special case: checkbox (type=7) and URL (type=15) fields must not have property
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -270,18 +227,15 @@ async function handleList(
   const p = args as z.infer<ReturnType<typeof z.object<typeof listActionSchema>>>;
   const { larkClient } = context;
 
-  const accessTokenResult = await getAccessToken(context);
-  if (typeof accessTokenResult === 'object' && 'content' in accessTokenResult) {
-    return accessTokenResult;
-  }
+  const accessTokenResult = await getToolAccessToken(context);
+  if (isToolResult(accessTokenResult)) return accessTokenResult;
   const accessToken = accessTokenResult;
 
   log.info(
     `list: app_token=${p.app_token}, table_id=${p.table_id}, view_id=${p.view_id ?? 'none'}`
   );
 
-  const Lark = await import('@larksuiteoapi/node-sdk');
-  const opts = Lark.withUserAccessToken(accessToken);
+  const opts = await withUserAccessToken(accessToken);
 
   const res = await larkClient!.sdk.bitable.appTableField.list(
     {
@@ -315,16 +269,13 @@ async function handleUpdate(
   const p = args as z.infer<ReturnType<typeof z.object<typeof updateActionSchema>>>;
   const { larkClient } = context;
 
-  const accessTokenResult = await getAccessToken(context);
-  if (typeof accessTokenResult === 'object' && 'content' in accessTokenResult) {
-    return accessTokenResult;
-  }
+  const accessTokenResult = await getToolAccessToken(context);
+  if (isToolResult(accessTokenResult)) return accessTokenResult;
   const accessToken = accessTokenResult;
 
   log.info(`update: app_token=${p.app_token}, table_id=${p.table_id}, field_id=${p.field_id}`);
 
-  const Lark = await import('@larksuiteoapi/node-sdk');
-  const opts = Lark.withUserAccessToken(accessToken);
+  const opts = await withUserAccessToken(accessToken);
 
   // If missing type or field_name, auto-query current field info
   let finalFieldName = p.field_name;
@@ -398,16 +349,13 @@ async function handleDelete(
   const p = args as z.infer<ReturnType<typeof z.object<typeof deleteActionSchema>>>;
   const { larkClient } = context;
 
-  const accessTokenResult = await getAccessToken(context);
-  if (typeof accessTokenResult === 'object' && 'content' in accessTokenResult) {
-    return accessTokenResult;
-  }
+  const accessTokenResult = await getToolAccessToken(context);
+  if (isToolResult(accessTokenResult)) return accessTokenResult;
   const accessToken = accessTokenResult;
 
   log.info(`delete: app_token=${p.app_token}, table_id=${p.table_id}, field_id=${p.field_id}`);
 
-  const Lark = await import('@larksuiteoapi/node-sdk');
-  const opts = Lark.withUserAccessToken(accessToken);
+  const opts = await withUserAccessToken(accessToken);
 
   const res = await larkClient!.sdk.bitable.appTableField.delete(
     {

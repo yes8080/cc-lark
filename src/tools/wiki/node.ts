@@ -9,10 +9,9 @@
 
 import { z } from 'zod';
 import type { ToolRegistry } from '../index.js';
-import { LarkClient } from '../../core/lark-client.js';
-import { getValidAccessToken, NeedAuthorizationError } from '../../core/uat-client.js';
+import { getToolAccessToken, isToolResult, withUserAccessToken } from '../common/auth-helper.js';
 import { assertLarkOk } from '../../core/api-error.js';
-import { json, jsonError, type ToolResult } from '../im/helpers.js';
+import { json, jsonError } from '../common/helpers.js';
 import { logger } from '../../utils/logger.js';
 
 const log = logger('tools:wiki:node');
@@ -34,27 +33,6 @@ const getActionSchema = {
   token: z.string().describe('Node token'),
 };
 
-async function getAccessToken(context: {
-  larkClient: LarkClient | null;
-  config: import('../../core/types.js').FeishuConfig;
-}): Promise<string | ToolResult> {
-  const { larkClient, config } = context;
-  if (!larkClient) return jsonError('LarkClient not initialized.');
-  const { appId, appSecret, brand } = config;
-  if (!appId || !appSecret) return jsonError('Missing FEISHU_APP_ID or FEISHU_APP_SECRET.');
-
-  const { listStoredTokens } = await import('../../core/token-store.js');
-  const tokens = await listStoredTokens(appId);
-  if (tokens.length === 0) return jsonError('No user authorization found.');
-  const userOpenId = tokens[0].userOpenId;
-
-  try {
-    return await getValidAccessToken({ userOpenId, appId, appSecret, domain: brand ?? 'feishu' });
-  } catch (err) {
-    if (err instanceof NeedAuthorizationError) return jsonError('User authorization expired.');
-    throw err;
-  }
-}
 
 export function registerWikiNodeTool(registry: ToolRegistry): void {
   registry.register({
@@ -65,14 +43,13 @@ export function registerWikiNodeTool(registry: ToolRegistry): void {
       const p = args as z.infer<ReturnType<typeof z.object<typeof listActionSchema>>>;
       const { larkClient } = context;
 
-      const tokenResult = await getAccessToken(context);
-      if (typeof tokenResult === 'object' && 'content' in tokenResult) return tokenResult;
+      const tokenResult = await getToolAccessToken(context);
+      if (isToolResult(tokenResult)) return tokenResult;
       const accessToken = tokenResult;
 
       log.info(`list: space_id=${p.space_id}, parent=${p.parent_node_token ?? 'root'}`);
 
-      const Lark = await import('@larksuiteoapi/node-sdk');
-      const opts = Lark.withUserAccessToken(accessToken);
+      const opts = await withUserAccessToken(accessToken);
 
       const res = await larkClient!.sdk.wiki.spaceNode.list(
         {
@@ -106,14 +83,13 @@ export function registerWikiNodeTool(registry: ToolRegistry): void {
       const p = args as z.infer<ReturnType<typeof z.object<typeof getActionSchema>>>;
       const { larkClient } = context;
 
-      const tokenResult = await getAccessToken(context);
-      if (typeof tokenResult === 'object' && 'content' in tokenResult) return tokenResult;
+      const tokenResult = await getToolAccessToken(context);
+      if (isToolResult(tokenResult)) return tokenResult;
       const accessToken = tokenResult;
 
       log.info(`get: token=${p.token}`);
 
-      const Lark = await import('@larksuiteoapi/node-sdk');
-      const opts = Lark.withUserAccessToken(accessToken);
+      const opts = await withUserAccessToken(accessToken);
 
       // Use direct request since SDK doesn't have a get method for node
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

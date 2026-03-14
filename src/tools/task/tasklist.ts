@@ -11,10 +11,9 @@
 
 import { z } from 'zod';
 import type { ToolRegistry } from '../index.js';
-import { LarkClient } from '../../core/lark-client.js';
-import { getValidAccessToken, NeedAuthorizationError } from '../../core/uat-client.js';
+import { getToolAccessToken, isToolResult, withUserAccessToken } from '../common/auth-helper.js';
 import { assertLarkOk } from '../../core/api-error.js';
-import { json, jsonError, type ToolResult } from '../im/helpers.js';
+import { json, jsonError } from '../common/helpers.js';
 import { logger } from '../../utils/logger.js';
 
 const log = logger('tools:task:tasklist');
@@ -55,29 +54,6 @@ const deleteActionSchema = {
   tasklist_guid: z.string().describe('Tasklist GUID'),
 };
 
-async function getAccessToken(context: {
-  larkClient: LarkClient | null;
-  config: import('../../core/types.js').FeishuConfig;
-}): Promise<string | ToolResult> {
-  const { larkClient, config } = context;
-  if (!larkClient) return jsonError('LarkClient not initialized.');
-  const { appId, appSecret, brand } = config;
-  if (!appId || !appSecret) return jsonError('Missing FEISHU_APP_ID or FEISHU_APP_SECRET.');
-
-  const { listStoredTokens } = await import('../../core/token-store.js');
-  const tokens = await listStoredTokens(appId);
-  if (tokens.length === 0)
-    return jsonError('No user authorization found. Use feishu_oauth tool first.');
-  const userOpenId = tokens[0].userOpenId;
-
-  try {
-    return await getValidAccessToken({ userOpenId, appId, appSecret, domain: brand ?? 'feishu' });
-  } catch (err) {
-    if (err instanceof NeedAuthorizationError)
-      return jsonError('User authorization expired. Re-authorize with feishu_oauth.');
-    throw err;
-  }
-}
 
 export function registerTasklistTool(registry: ToolRegistry): void {
   registry.register({
@@ -88,14 +64,13 @@ export function registerTasklistTool(registry: ToolRegistry): void {
       const p = args as z.infer<ReturnType<typeof z.object<typeof createActionSchema>>>;
       const { larkClient } = context;
 
-      const tokenResult = await getAccessToken(context);
-      if (typeof tokenResult === 'object' && 'content' in tokenResult) return tokenResult;
+      const tokenResult = await getToolAccessToken(context);
+      if (isToolResult(tokenResult)) return tokenResult;
       const accessToken = tokenResult;
 
       log.info(`create: name=${p.name}`);
 
-      const Lark = await import('@larksuiteoapi/node-sdk');
-      const opts = Lark.withUserAccessToken(accessToken);
+      const opts = await withUserAccessToken(accessToken);
 
       const res = await larkClient!.sdk.task.v2.tasklist.create(
         { data: { name: p.name }, params: { user_id_type: 'open_id' } },
@@ -115,14 +90,13 @@ export function registerTasklistTool(registry: ToolRegistry): void {
       const p = args as z.infer<ReturnType<typeof z.object<typeof getActionSchema>>>;
       const { larkClient } = context;
 
-      const tokenResult = await getAccessToken(context);
-      if (typeof tokenResult === 'object' && 'content' in tokenResult) return tokenResult;
+      const tokenResult = await getToolAccessToken(context);
+      if (isToolResult(tokenResult)) return tokenResult;
       const accessToken = tokenResult;
 
       log.info(`get: tasklist_guid=${p.tasklist_guid}`);
 
-      const Lark = await import('@larksuiteoapi/node-sdk');
-      const opts = Lark.withUserAccessToken(accessToken);
+      const opts = await withUserAccessToken(accessToken);
 
       const res = await larkClient!.sdk.task.v2.tasklist.get(
         { path: { tasklist_guid: p.tasklist_guid }, params: { user_id_type: 'open_id' } },
@@ -142,14 +116,13 @@ export function registerTasklistTool(registry: ToolRegistry): void {
       const p = args as z.infer<ReturnType<typeof z.object<typeof listActionSchema>>>;
       const { larkClient } = context;
 
-      const tokenResult = await getAccessToken(context);
-      if (typeof tokenResult === 'object' && 'content' in tokenResult) return tokenResult;
+      const tokenResult = await getToolAccessToken(context);
+      if (isToolResult(tokenResult)) return tokenResult;
       const accessToken = tokenResult;
 
       log.info(`list: page_size=${p.page_size ?? 50}`);
 
-      const Lark = await import('@larksuiteoapi/node-sdk');
-      const opts = Lark.withUserAccessToken(accessToken);
+      const opts = await withUserAccessToken(accessToken);
 
       const res = await larkClient!.sdk.task.v2.tasklist.list(
         { params: { page_size: p.page_size, page_token: p.page_token, user_id_type: 'open_id' } },
@@ -176,14 +149,13 @@ export function registerTasklistTool(registry: ToolRegistry): void {
       const p = args as z.infer<ReturnType<typeof z.object<typeof tasksActionSchema>>>;
       const { larkClient } = context;
 
-      const tokenResult = await getAccessToken(context);
-      if (typeof tokenResult === 'object' && 'content' in tokenResult) return tokenResult;
+      const tokenResult = await getToolAccessToken(context);
+      if (isToolResult(tokenResult)) return tokenResult;
       const accessToken = tokenResult;
 
       log.info(`tasks: tasklist_guid=${p.tasklist_guid}, completed=${p.completed ?? 'all'}`);
 
-      const Lark = await import('@larksuiteoapi/node-sdk');
-      const opts = Lark.withUserAccessToken(accessToken);
+      const opts = await withUserAccessToken(accessToken);
 
       const res = await larkClient!.sdk.task.v2.tasklist.tasks(
         {
@@ -218,14 +190,13 @@ export function registerTasklistTool(registry: ToolRegistry): void {
       const p = args as z.infer<ReturnType<typeof z.object<typeof patchActionSchema>>>;
       const { larkClient } = context;
 
-      const tokenResult = await getAccessToken(context);
-      if (typeof tokenResult === 'object' && 'content' in tokenResult) return tokenResult;
+      const tokenResult = await getToolAccessToken(context);
+      if (isToolResult(tokenResult)) return tokenResult;
       const accessToken = tokenResult;
 
       log.info(`patch: tasklist_guid=${p.tasklist_guid}, name=${p.name}`);
 
-      const Lark = await import('@larksuiteoapi/node-sdk');
-      const opts = Lark.withUserAccessToken(accessToken);
+      const opts = await withUserAccessToken(accessToken);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const tasklistData: any = {};
@@ -259,14 +230,13 @@ export function registerTasklistTool(registry: ToolRegistry): void {
       const p = args as z.infer<ReturnType<typeof z.object<typeof deleteActionSchema>>>;
       const { larkClient } = context;
 
-      const tokenResult = await getAccessToken(context);
-      if (typeof tokenResult === 'object' && 'content' in tokenResult) return tokenResult;
+      const tokenResult = await getToolAccessToken(context);
+      if (isToolResult(tokenResult)) return tokenResult;
       const accessToken = tokenResult;
 
       log.info(`delete: tasklist_guid=${p.tasklist_guid}`);
 
-      const Lark = await import('@larksuiteoapi/node-sdk');
-      const opts = Lark.withUserAccessToken(accessToken);
+      const opts = await withUserAccessToken(accessToken);
 
       const res = await larkClient!.sdk.task.v2.tasklist.delete(
         { path: { tasklist_guid: p.tasklist_guid } },
