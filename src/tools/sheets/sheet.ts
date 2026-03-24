@@ -72,7 +72,7 @@ const writeActionSchema = {
   url: z.string().optional().describe('Spreadsheet URL'),
   range: z.string().optional().describe('Range to write (e.g., Sheet1!A1)'),
   sheet_id: z.string().optional().describe('Sheet ID'),
-  values: z.array(z.array(z.any())).describe('Data to write (2D array)'),
+  values: z.array(z.array(z.union([z.string(), z.number(), z.boolean(), z.null()]))).describe('Data to write (2D array)'),
 };
 
 const appendActionSchema = {
@@ -81,7 +81,7 @@ const appendActionSchema = {
   url: z.string().optional().describe('Spreadsheet URL'),
   range: z.string().optional().describe('Range to append to (e.g., Sheet1)'),
   sheet_id: z.string().optional().describe('Sheet ID'),
-  values: z.array(z.array(z.any())).describe('Data to append (2D array)'),
+  values: z.array(z.array(z.union([z.string(), z.number(), z.boolean(), z.null()]))).describe('Data to append (2D array)'),
 };
 
 const createActionSchema = {

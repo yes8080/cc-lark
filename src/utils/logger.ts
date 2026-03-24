@@ -81,22 +81,22 @@ function createLogger(subsystem: string): Logger {
 
     debug(message: string, meta?: Record<string, unknown>): void {
       const formatted = formatMessage(tag, message, meta);
-      console.debug(`${GRAY}[DEBUG]${RESET}`, formatted);
+      process.stderr.write(`${GRAY}[DEBUG]${RESET} ${formatted}\n`);
     },
 
     info(message: string, meta?: Record<string, unknown>): void {
       const formatted = formatMessage(tag, message, meta);
-      console.log(`${CYAN}[INFO]${RESET}`, formatted);
+      process.stderr.write(`${CYAN}[INFO]${RESET} ${formatted}\n`);
     },
 
     warn(message: string, meta?: Record<string, unknown>): void {
       const formatted = formatMessage(tag, message, meta);
-      console.warn(`${YELLOW}[WARN]${RESET}`, formatted);
+      process.stderr.write(`${YELLOW}[WARN]${RESET} ${formatted}\n`);
     },
 
     error(message: string, meta?: Record<string, unknown>): void {
       const formatted = formatMessage(tag, message, meta);
-      console.error(`${RED}[ERROR]${RESET}`, formatted);
+      process.stderr.write(`${RED}[ERROR]${RESET} ${formatted}\n`);
     },
 
     child(name: string): Logger {
