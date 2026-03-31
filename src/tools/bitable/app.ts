@@ -19,7 +19,7 @@
 import { z } from 'zod';
 import type { ToolRegistry } from '../index.js';
 import { LarkClient } from '../../core/lark-client.js';
-import { getToolAccessToken, isToolResult, withUserAccessToken } from '../common/auth-helper.js';
+import { getToolAccessTokenWithTenantFallback, isToolResult, withAccessToken } from '../common/auth-helper.js';
 import { assertLarkOk } from '../../core/api-error.js';
 import { json, type ToolResult } from '../common/helpers.js';
 import { logger } from '../../utils/logger.js';
@@ -169,13 +169,12 @@ async function handleCreate(
   const p = args as z.infer<ReturnType<typeof z.object<typeof createActionSchema>>>;
   const { larkClient } = context;
 
-  const accessTokenResult = await getToolAccessToken(context);
+  const accessTokenResult = await getToolAccessTokenWithTenantFallback(context);
   if (isToolResult(accessTokenResult)) return accessTokenResult;
-  const accessToken = accessTokenResult;
 
   log.info(`create: name=${p.name}, folder_token=${p.folder_token ?? 'my_space'}`);
 
-  const opts = await withUserAccessToken(accessToken);
+  const opts = await withAccessToken(accessTokenResult);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data: any = { name: p.name };
@@ -200,13 +199,12 @@ async function handleGet(
   const p = args as z.infer<ReturnType<typeof z.object<typeof getActionSchema>>>;
   const { larkClient } = context;
 
-  const accessTokenResult = await getToolAccessToken(context);
+  const accessTokenResult = await getToolAccessTokenWithTenantFallback(context);
   if (isToolResult(accessTokenResult)) return accessTokenResult;
-  const accessToken = accessTokenResult;
 
   log.info(`get: app_token=${p.app_token}`);
 
-  const opts = await withUserAccessToken(accessToken);
+  const opts = await withAccessToken(accessTokenResult);
 
   const res = await larkClient!.sdk.bitable.app.get(
     {
@@ -230,13 +228,12 @@ async function handleList(
   const p = args as z.infer<ReturnType<typeof z.object<typeof listActionSchema>>>;
   const { larkClient } = context;
 
-  const accessTokenResult = await getToolAccessToken(context);
+  const accessTokenResult = await getToolAccessTokenWithTenantFallback(context);
   if (isToolResult(accessTokenResult)) return accessTokenResult;
-  const accessToken = accessTokenResult;
 
   log.info(`list: folder_token=${p.folder_token ?? 'my_space'}, page_size=${p.page_size ?? 50}`);
 
-  const opts = await withUserAccessToken(accessToken);
+  const opts = await withAccessToken(accessTokenResult);
 
   const res = await larkClient!.sdk.drive.v1.file.list(
     {
@@ -273,13 +270,12 @@ async function handlePatch(
   const p = args as z.infer<ReturnType<typeof z.object<typeof patchActionSchema>>>;
   const { larkClient } = context;
 
-  const accessTokenResult = await getToolAccessToken(context);
+  const accessTokenResult = await getToolAccessTokenWithTenantFallback(context);
   if (isToolResult(accessTokenResult)) return accessTokenResult;
-  const accessToken = accessTokenResult;
 
   log.info(`patch: app_token=${p.app_token}, name=${p.name}, is_advanced=${p.is_advanced}`);
 
-  const opts = await withUserAccessToken(accessToken);
+  const opts = await withAccessToken(accessTokenResult);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const updateData: any = {};
@@ -309,15 +305,14 @@ async function handleCopy(
   const p = args as z.infer<ReturnType<typeof z.object<typeof copyActionSchema>>>;
   const { larkClient } = context;
 
-  const accessTokenResult = await getToolAccessToken(context);
+  const accessTokenResult = await getToolAccessTokenWithTenantFallback(context);
   if (isToolResult(accessTokenResult)) return accessTokenResult;
-  const accessToken = accessTokenResult;
 
   log.info(
     `copy: app_token=${p.app_token}, name=${p.name}, folder_token=${p.folder_token ?? 'my_space'}`
   );
 
-  const opts = await withUserAccessToken(accessToken);
+  const opts = await withAccessToken(accessTokenResult);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data: any = { name: p.name };

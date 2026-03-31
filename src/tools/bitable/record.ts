@@ -21,7 +21,7 @@
 import { z } from 'zod';
 import type { ToolRegistry } from '../index.js';
 import { LarkClient } from '../../core/lark-client.js';
-import { getToolAccessToken, isToolResult, withUserAccessToken } from '../common/auth-helper.js';
+import { getToolAccessTokenWithTenantFallback, isToolResult, withAccessToken } from '../common/auth-helper.js';
 import { assertLarkOk } from '../../core/api-error.js';
 import { json, jsonError, type ToolResult } from '../common/helpers.js';
 import { logger } from '../../utils/logger.js';
@@ -292,13 +292,12 @@ async function handleCreate(
     return jsonError('fields is required and cannot be empty');
   }
 
-  const accessTokenResult = await getToolAccessToken(context);
+  const accessTokenResult = await getToolAccessTokenWithTenantFallback(context);
   if (isToolResult(accessTokenResult)) return accessTokenResult;
-  const accessToken = accessTokenResult;
 
   log.info(`create: app_token=${p.app_token}, table_id=${p.table_id}`);
 
-  const opts = await withUserAccessToken(accessToken);
+  const opts = await withAccessToken(accessTokenResult);
 
   const res = await larkClient!.sdk.bitable.appTableRecord.create(
     {
@@ -322,15 +321,14 @@ async function handleList(
   const p = args as z.infer<ReturnType<typeof z.object<typeof listActionSchema>>>;
   const { larkClient } = context;
 
-  const accessTokenResult = await getToolAccessToken(context);
+  const accessTokenResult = await getToolAccessTokenWithTenantFallback(context);
   if (isToolResult(accessTokenResult)) return accessTokenResult;
-  const accessToken = accessTokenResult;
 
   log.info(
     `list: app_token=${p.app_token}, table_id=${p.table_id}, view_id=${p.view_id ?? 'none'}, filter=${p.filter ? 'yes' : 'no'}`
   );
 
-  const opts = await withUserAccessToken(accessToken);
+  const opts = await withAccessToken(accessTokenResult);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const searchData: any = {};
@@ -391,13 +389,12 @@ async function handleUpdate(
   const p = args as z.infer<ReturnType<typeof z.object<typeof updateActionSchema>>>;
   const { larkClient } = context;
 
-  const accessTokenResult = await getToolAccessToken(context);
+  const accessTokenResult = await getToolAccessTokenWithTenantFallback(context);
   if (isToolResult(accessTokenResult)) return accessTokenResult;
-  const accessToken = accessTokenResult;
 
   log.info(`update: app_token=${p.app_token}, table_id=${p.table_id}, record_id=${p.record_id}`);
 
-  const opts = await withUserAccessToken(accessToken);
+  const opts = await withAccessToken(accessTokenResult);
 
   const res = await larkClient!.sdk.bitable.appTableRecord.update(
     {
@@ -421,13 +418,12 @@ async function handleDelete(
   const p = args as z.infer<ReturnType<typeof z.object<typeof deleteActionSchema>>>;
   const { larkClient } = context;
 
-  const accessTokenResult = await getToolAccessToken(context);
+  const accessTokenResult = await getToolAccessTokenWithTenantFallback(context);
   if (isToolResult(accessTokenResult)) return accessTokenResult;
-  const accessToken = accessTokenResult;
 
   log.info(`delete: app_token=${p.app_token}, table_id=${p.table_id}, record_id=${p.record_id}`);
 
-  const opts = await withUserAccessToken(accessToken);
+  const opts = await withAccessToken(accessTokenResult);
 
   const res = await larkClient!.sdk.bitable.appTableRecord.delete(
     {
@@ -449,15 +445,14 @@ async function handleBatchCreate(
   const p = args as z.infer<ReturnType<typeof z.object<typeof batchCreateActionSchema>>>;
   const { larkClient } = context;
 
-  const accessTokenResult = await getToolAccessToken(context);
+  const accessTokenResult = await getToolAccessTokenWithTenantFallback(context);
   if (isToolResult(accessTokenResult)) return accessTokenResult;
-  const accessToken = accessTokenResult;
 
   log.info(
     `batch_create: app_token=${p.app_token}, table_id=${p.table_id}, records_count=${p.records.length}`
   );
 
-  const opts = await withUserAccessToken(accessToken);
+  const opts = await withAccessToken(accessTokenResult);
 
   const res = await larkClient!.sdk.bitable.appTableRecord.batchCreate(
     {
@@ -481,15 +476,14 @@ async function handleBatchUpdate(
   const p = args as z.infer<ReturnType<typeof z.object<typeof batchUpdateActionSchema>>>;
   const { larkClient } = context;
 
-  const accessTokenResult = await getToolAccessToken(context);
+  const accessTokenResult = await getToolAccessTokenWithTenantFallback(context);
   if (isToolResult(accessTokenResult)) return accessTokenResult;
-  const accessToken = accessTokenResult;
 
   log.info(
     `batch_update: app_token=${p.app_token}, table_id=${p.table_id}, records_count=${p.records.length}`
   );
 
-  const opts = await withUserAccessToken(accessToken);
+  const opts = await withAccessToken(accessTokenResult);
 
   const res = await larkClient!.sdk.bitable.appTableRecord.batchUpdate(
     {
@@ -513,15 +507,14 @@ async function handleBatchDelete(
   const p = args as z.infer<ReturnType<typeof z.object<typeof batchDeleteActionSchema>>>;
   const { larkClient } = context;
 
-  const accessTokenResult = await getToolAccessToken(context);
+  const accessTokenResult = await getToolAccessTokenWithTenantFallback(context);
   if (isToolResult(accessTokenResult)) return accessTokenResult;
-  const accessToken = accessTokenResult;
 
   log.info(
     `batch_delete: app_token=${p.app_token}, table_id=${p.table_id}, record_ids_count=${p.record_ids.length}`
   );
 
-  const opts = await withUserAccessToken(accessToken);
+  const opts = await withAccessToken(accessTokenResult);
 
   const res = await larkClient!.sdk.bitable.appTableRecord.batchDelete(
     {
