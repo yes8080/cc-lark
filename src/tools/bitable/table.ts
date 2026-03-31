@@ -20,7 +20,7 @@
 import { z } from 'zod';
 import type { ToolRegistry } from '../index.js';
 import { LarkClient } from '../../core/lark-client.js';
-import { getToolAccessToken, isToolResult, withUserAccessToken } from '../common/auth-helper.js';
+import { getToolAccessTokenWithTenantFallback, isToolResult, withAccessToken } from '../common/auth-helper.js';
 import { assertLarkOk } from '../../core/api-error.js';
 import { json, jsonError, type ToolResult } from '../common/helpers.js';
 import { logger } from '../../utils/logger.js';
@@ -216,15 +216,14 @@ async function handleCreate(
   const p = args as z.infer<ReturnType<typeof z.object<typeof createActionSchema>>>;
   const { larkClient } = context;
 
-  const accessTokenResult = await getToolAccessToken(context);
+  const accessTokenResult = await getToolAccessTokenWithTenantFallback(context);
   if (isToolResult(accessTokenResult)) return accessTokenResult;
-  const accessToken = accessTokenResult;
 
   log.info(
     `create: app_token=${p.app_token}, table_name=${p.table.name}, fields_count=${p.table.fields?.length ?? 0}`
   );
 
-  const opts = await withUserAccessToken(accessToken);
+  const opts = await withAccessToken(accessTokenResult);
 
   // Handle special case: checkbox (type=7) and URL (type=15) fields must not have property
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -269,13 +268,12 @@ async function handleList(
   const p = args as z.infer<ReturnType<typeof z.object<typeof listActionSchema>>>;
   const { larkClient } = context;
 
-  const accessTokenResult = await getToolAccessToken(context);
+  const accessTokenResult = await getToolAccessTokenWithTenantFallback(context);
   if (isToolResult(accessTokenResult)) return accessTokenResult;
-  const accessToken = accessTokenResult;
 
   log.info(`list: app_token=${p.app_token}, page_size=${p.page_size ?? 50}`);
 
-  const opts = await withUserAccessToken(accessToken);
+  const opts = await withAccessToken(accessTokenResult);
 
   const res = await larkClient!.sdk.bitable.appTable.list(
     {
@@ -308,13 +306,12 @@ async function handlePatch(
   const p = args as z.infer<ReturnType<typeof z.object<typeof patchActionSchema>>>;
   const { larkClient } = context;
 
-  const accessTokenResult = await getToolAccessToken(context);
+  const accessTokenResult = await getToolAccessTokenWithTenantFallback(context);
   if (isToolResult(accessTokenResult)) return accessTokenResult;
-  const accessToken = accessTokenResult;
 
   log.info(`patch: app_token=${p.app_token}, table_id=${p.table_id}, name=${p.name}`);
 
-  const opts = await withUserAccessToken(accessToken);
+  const opts = await withAccessToken(accessTokenResult);
 
   const res = await larkClient!.sdk.bitable.appTable.patch(
     {
@@ -342,13 +339,12 @@ async function handleDelete(
   const p = args as z.infer<ReturnType<typeof z.object<typeof deleteActionSchema>>>;
   const { larkClient } = context;
 
-  const accessTokenResult = await getToolAccessToken(context);
+  const accessTokenResult = await getToolAccessTokenWithTenantFallback(context);
   if (isToolResult(accessTokenResult)) return accessTokenResult;
-  const accessToken = accessTokenResult;
 
   log.info(`delete: app_token=${p.app_token}, table_id=${p.table_id}`);
 
-  const opts = await withUserAccessToken(accessToken);
+  const opts = await withAccessToken(accessTokenResult);
 
   const res = await larkClient!.sdk.bitable.appTable.delete(
     {
@@ -377,13 +373,12 @@ async function handleBatchCreate(
     return jsonError('tables is required and cannot be empty');
   }
 
-  const accessTokenResult = await getToolAccessToken(context);
+  const accessTokenResult = await getToolAccessTokenWithTenantFallback(context);
   if (isToolResult(accessTokenResult)) return accessTokenResult;
-  const accessToken = accessTokenResult;
 
   log.info(`batch_create: app_token=${p.app_token}, tables_count=${p.tables.length}`);
 
-  const opts = await withUserAccessToken(accessToken);
+  const opts = await withAccessToken(accessTokenResult);
 
   const res = await larkClient!.sdk.bitable.appTable.batchCreate(
     {
@@ -412,13 +407,12 @@ async function handleBatchDelete(
     return jsonError('table_ids is required and cannot be empty');
   }
 
-  const accessTokenResult = await getToolAccessToken(context);
+  const accessTokenResult = await getToolAccessTokenWithTenantFallback(context);
   if (isToolResult(accessTokenResult)) return accessTokenResult;
-  const accessToken = accessTokenResult;
 
   log.info(`batch_delete: app_token=${p.app_token}, table_ids_count=${p.table_ids.length}`);
 
-  const opts = await withUserAccessToken(accessToken);
+  const opts = await withAccessToken(accessTokenResult);
 
   const res = await larkClient!.sdk.bitable.appTable.batchDelete(
     {

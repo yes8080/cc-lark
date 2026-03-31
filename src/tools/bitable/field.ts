@@ -18,7 +18,7 @@
 import { z } from 'zod';
 import type { ToolRegistry } from '../index.js';
 import { LarkClient } from '../../core/lark-client.js';
-import { getToolAccessToken, isToolResult, withUserAccessToken } from '../common/auth-helper.js';
+import { getToolAccessTokenWithTenantFallback, isToolResult, withAccessToken } from '../common/auth-helper.js';
 import { assertLarkOk } from '../../core/api-error.js';
 import { json, jsonError, type ToolResult } from '../common/helpers.js';
 import { logger } from '../../utils/logger.js';
@@ -178,15 +178,14 @@ async function handleCreate(
   const p = args as z.infer<ReturnType<typeof z.object<typeof createActionSchema>>>;
   const { larkClient } = context;
 
-  const accessTokenResult = await getToolAccessToken(context);
+  const accessTokenResult = await getToolAccessTokenWithTenantFallback(context);
   if (isToolResult(accessTokenResult)) return accessTokenResult;
-  const accessToken = accessTokenResult;
 
   log.info(
     `create: app_token=${p.app_token}, table_id=${p.table_id}, field_name=${p.field_name}, type=${p.type}`
   );
 
-  const opts = await withUserAccessToken(accessToken);
+  const opts = await withAccessToken(accessTokenResult);
 
   // Handle special case: checkbox (type=7) and URL (type=15) fields must not have property
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -227,15 +226,14 @@ async function handleList(
   const p = args as z.infer<ReturnType<typeof z.object<typeof listActionSchema>>>;
   const { larkClient } = context;
 
-  const accessTokenResult = await getToolAccessToken(context);
+  const accessTokenResult = await getToolAccessTokenWithTenantFallback(context);
   if (isToolResult(accessTokenResult)) return accessTokenResult;
-  const accessToken = accessTokenResult;
 
   log.info(
     `list: app_token=${p.app_token}, table_id=${p.table_id}, view_id=${p.view_id ?? 'none'}`
   );
 
-  const opts = await withUserAccessToken(accessToken);
+  const opts = await withAccessToken(accessTokenResult);
 
   const res = await larkClient!.sdk.bitable.appTableField.list(
     {
@@ -269,13 +267,12 @@ async function handleUpdate(
   const p = args as z.infer<ReturnType<typeof z.object<typeof updateActionSchema>>>;
   const { larkClient } = context;
 
-  const accessTokenResult = await getToolAccessToken(context);
+  const accessTokenResult = await getToolAccessTokenWithTenantFallback(context);
   if (isToolResult(accessTokenResult)) return accessTokenResult;
-  const accessToken = accessTokenResult;
 
   log.info(`update: app_token=${p.app_token}, table_id=${p.table_id}, field_id=${p.field_id}`);
 
-  const opts = await withUserAccessToken(accessToken);
+  const opts = await withAccessToken(accessTokenResult);
 
   // If missing type or field_name, auto-query current field info
   let finalFieldName = p.field_name;
@@ -349,13 +346,12 @@ async function handleDelete(
   const p = args as z.infer<ReturnType<typeof z.object<typeof deleteActionSchema>>>;
   const { larkClient } = context;
 
-  const accessTokenResult = await getToolAccessToken(context);
+  const accessTokenResult = await getToolAccessTokenWithTenantFallback(context);
   if (isToolResult(accessTokenResult)) return accessTokenResult;
-  const accessToken = accessTokenResult;
 
   log.info(`delete: app_token=${p.app_token}, table_id=${p.table_id}, field_id=${p.field_id}`);
 
-  const opts = await withUserAccessToken(accessToken);
+  const opts = await withAccessToken(accessTokenResult);
 
   const res = await larkClient!.sdk.bitable.appTableField.delete(
     {
